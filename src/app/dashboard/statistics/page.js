@@ -15,7 +15,7 @@ export default function StatisticsPage() {
 
     useEffect(() => {
         if (!isSupabaseConfigured || !profile?.id) return;
-        setLoading(true);
+        setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect
 
         const now = new Date();
         const periodStart = period === 'week'
