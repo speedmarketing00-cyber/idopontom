@@ -134,7 +134,7 @@ export default function BookingPage({ params }) {
                 // 2. Load team members (for Profi providers)
                 if (profile.subscription_tier === 'pro') {
                     const { data: team } = await supabase.from('team_members').select('*')
-                        .eq('profile_id', profile.id).eq('is_active', true).order('created_at');
+                        .eq('owner_profile_id', profile.id).eq('is_active', true).order('created_at');
                     setTeamMembers(team || []);
                 }
 

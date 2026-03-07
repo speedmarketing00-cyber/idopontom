@@ -178,7 +178,7 @@ export default function BookingsPage() {
                 }
             });
             if (isProfi && !teamMemberInfo) {
-                supabase.from('team_members').select('*').eq('profile_id', effectiveProfileId)
+                supabase.from('team_members').select('*').eq('owner_profile_id', effectiveProfileId)
                     .order('created_at').then(({ data }) => setTeamMembers(data || []));
             }
         }

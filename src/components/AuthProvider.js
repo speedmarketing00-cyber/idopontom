@@ -50,7 +50,7 @@ export function AuthProvider({ children }) {
         if (userEmail) {
             const { data: teamRecord } = await supabase
                 .from('team_members')
-                .select('*, profiles!team_members_profile_id_fkey(*)')
+                .select('*, profiles!team_members_owner_profile_id_fkey(*)')
                 .eq('email', userEmail)
                 .eq('is_active', true)
                 .maybeSingle();
@@ -60,7 +60,7 @@ export function AuthProvider({ children }) {
                     teamMemberId: teamRecord.id,
                     teamMemberName: teamRecord.name,
                     teamMemberRole: teamRecord.role,
-                    ownerProfileId: teamRecord.profile_id,
+                    ownerProfileId: teamRecord.owner_profile_id,
                     ownerProfile: teamRecord.profiles,
                 });
                 // Auto-upgrade team member's own subscription_tier to 'basic' while active

@@ -17,7 +17,7 @@ export async function GET(request) {
 
         const { data, error } = await supabaseAdmin.from('team_members')
             .select('*')
-            .eq('profile_id', profileId)
+            .eq('owner_profile_id', profileId)
             .order('created_at');
 
         if (error) {
@@ -45,14 +45,14 @@ export async function POST(request) {
         // Check max 8
         const { count } = await supabaseAdmin.from('team_members')
             .select('*', { count: 'exact', head: true })
-            .eq('profile_id', profileId);
+            .eq('owner_profile_id', profileId);
         if (count >= 8) {
             return Response.json({ error: 'Maximum 8 csapattag meghívható' }, { status: 400 });
         }
 
         // Insert team member
         const { data, error } = await supabaseAdmin.from('team_members').insert({
-            profile_id: profileId,
+            owner_profile_id: profileId,
             name,
             email,
             role: 'Csapattag',
