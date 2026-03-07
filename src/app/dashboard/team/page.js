@@ -58,7 +58,7 @@ export default function TeamPage() {
 
     const handleAdd = async () => {
         if (!form.name || !form.email || !profile?.id) return;
-        if (members.length >= 9) return; // max 10 including owner
+        if (members.length >= 8) return; // max 8 team members
         const { data, error } = await supabase.from('team_members').insert({
             profile_id: profile.id, name: form.name, email: form.email, role: form.role, is_active: true
         }).select().single();
@@ -71,8 +71,22 @@ export default function TeamPage() {
     };
 
     const handleRemove = async (id) => {
+        const m = members.find(x => x.id === id);
+        if (m) {
+            // Downgrade tier + send removal notification (fire and forget)
+            fetch('/api/team/remove', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    memberEmail: m.email,
+                    memberName: m.name,
+                    ownerName: profile?.name || profile?.business_name || 'Tulajdonos',
+                    businessName: profile?.business_name || 'Vállalkozás',
+                }),
+            }).catch(() => {});
+        }
         await supabase.from('team_members').delete().eq('id', id);
-        setMembers(prev => prev.filter(m => m.id !== id));
+        setMembers(prev => prev.filter(x => x.id !== id));
     };
     const handleToggle = async (id) => {
         const m = members.find(x => x.id === id);
@@ -101,7 +115,7 @@ export default function TeamPage() {
                         Hívj meg kollégákat, osszátok meg a naptárat, és kezeljétek együtt a foglalásokat!
                     </p>
                     <p style={{ color: 'var(--gray-400)', fontSize: '0.85rem', marginBottom: 28, maxWidth: 450, margin: '12px auto 28px' }}>
-                        A csapatkezelés funkció a <strong>Profi csomagban</strong> érhető el, amely max. 10 alfiókot tartalmaz.
+                        A csapatkezelés funkció a <strong>Profi csomagban</strong> érhető el, amely max. 8 csapattagot tartalmaz.
                     </p>
 
                     <div style={{
@@ -112,7 +126,8 @@ export default function TeamPage() {
                         <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>🏢 Profi csomag</div>
                         <div style={{ color: 'var(--gray-600)', fontSize: '0.9rem', marginBottom: 8 }}>19 997 Ft/hó</div>
                         <ul style={{ textAlign: 'left', fontSize: '0.85rem', color: 'var(--gray-600)', lineHeight: 1.8, listStyle: 'none', padding: 0 }}>
-                            <li>✅ 6-10 alfiók (csapattag)</li>
+                            <li>✅ Max. 8 csapattag meghívása</li>
+                            <li>✅ Csapattagok Alap csomagot kapnak</li>
                             <li>✅ Csapat naptár</li>
                             <li>✅ Jogosultság kezelés</li>
                             <li>✅ Prioritásos támogatás</li>
@@ -133,21 +148,28 @@ export default function TeamPage() {
             <div className={s.topBar}>
                 <div className={s.topBarLeft}>
                     <h1>Csapat 👥</h1>
-                    <p>{members.length + 1} csapattag • Profi csomag</p>
+                    <p>{members.length} csapattag meghívva • Profi csomag</p>
                 </div>
                 <div className={s.topBarRight}>
-                    <button onClick={() => setIsAdding(true)} className="btn btn-primary btn-sm">+ Meghívás</button>
+                    <button
+                        onClick={() => setIsAdding(true)}
+                        className="btn btn-primary btn-sm"
+                        disabled={members.length >= 8}
+                        title={members.length >= 8 ? 'Elérted a maximum 8 fős limitet' : ''}
+                    >
+                        {members.length >= 8 ? '🔒 Max. elérve' : '+ Meghívás'}
+                    </button>
                 </div>
             </div>
 
             <div style={{ background: 'linear-gradient(135deg, var(--primary-50), var(--accent-50))', borderRadius: 16, padding: 20, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span style={{ fontSize: '1.5rem' }}>🏢</span>
                 <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-800)' }}>Profi csomag – max. 10 alfiók</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{members.length + 1}/10 helyet használsz</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-800)' }}>Profi csomag – max. 8 csapattag</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{members.length}/8 meghívott csapattag</div>
                 </div>
                 <div style={{ marginLeft: 'auto', width: 120, height: 8, background: 'var(--gray-200)', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${((members.length + 1) / 10) * 100}%`, background: 'var(--primary-500)', borderRadius: 4 }} />
+                    <div style={{ height: '100%', width: `${(members.length / 8) * 100}%`, background: members.length >= 8 ? 'var(--error)' : 'var(--primary-500)', borderRadius: 4 }} />
                 </div>
             </div>
 

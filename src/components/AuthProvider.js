@@ -63,6 +63,14 @@ export function AuthProvider({ children }) {
                     ownerProfileId: teamRecord.profile_id,
                     ownerProfile: teamRecord.profiles,
                 });
+                // Auto-upgrade team member's own subscription_tier to 'basic' while active
+                if (data && data.subscription_tier === 'free') {
+                    supabase.from('profiles')
+                        .update({ subscription_tier: 'basic' })
+                        .eq('user_id', userId)
+                        .then(() => {})
+                        .catch(() => {});
+                }
                 // Always use owner's profile for team members
                 // so they see the owner's bookings, calendar, services etc.
                 setProfile({
