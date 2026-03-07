@@ -63,14 +63,13 @@ export function AuthProvider({ children }) {
                     ownerProfileId: teamRecord.profile_id,
                     ownerProfile: teamRecord.profiles,
                 });
-                // If no own profile exists yet, use owner's profile data as base
-                if (!data) {
-                    setProfile({
-                        ...teamRecord.profiles,
-                        name: teamRecord.name,
-                        _isTeamMemberOnly: true,
-                    });
-                }
+                // Always use owner's profile for team members
+                // so they see the owner's bookings, calendar, services etc.
+                setProfile({
+                    ...teamRecord.profiles,
+                    name: teamRecord.name,
+                    _isTeamMemberOnly: true,
+                });
             }
         }
 

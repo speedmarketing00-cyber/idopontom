@@ -17,13 +17,13 @@ export default function RegisterPage() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        if (!form.name || !form.email || !form.password || !form.businessName) { setError('Kérlek töltsd ki az összes mezőt!'); return; }
+        if (!form.name || !form.email || !form.password) { setError('Kérlek töltsd ki az összes mezőt!'); return; }
         if (form.password.length < 6) { setError('A jelszónak legalább 6 karakter hosszúnak kell lennie!'); return; }
         setLoading(true);
         try {
             await signUp(form.email, form.password, {
                 name: form.name,
-                business_name: form.businessName,
+                business_name: form.businessName || form.name,
                 business_type: form.businessType,
             });
             router.push('/dashboard');
@@ -77,8 +77,8 @@ export default function RegisterPage() {
                         </div>
                     </div>
                     <div className="input-group">
-                        <label className="input-label">Vállalkozás neve</label>
-                        <input type="text" className="input" placeholder="Szépség Szalon Kati" value={form.businessName} onChange={handleChange('businessName')} required />
+                        <label className="input-label">Vállalkozás neve <span style={{color:'var(--gray-400)',fontWeight:400,fontSize:'0.8rem'}}>(csapattagként üresen hagyható)</span></label>
+                        <input type="text" className="input" placeholder="Szépség Szalon Kati" value={form.businessName} onChange={handleChange('businessName')} />
                     </div>
                     <div className="input-group">
                         <label className="input-label">Szakterület</label>
