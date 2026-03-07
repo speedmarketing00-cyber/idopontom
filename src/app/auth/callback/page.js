@@ -40,7 +40,15 @@ export default function AuthCallbackPage() {
                     .eq('user_id', session.user.id)
                     .single();
 
-                if (profile?.business_name) {
+                // Check if user is a team member (they don't need to set up their own business)
+                const { data: teamRecord } = await supabase
+                    .from('team_members')
+                    .select('id')
+                    .eq('email', session.user.email)
+                    .eq('is_active', true)
+                    .maybeSingle();
+
+                if (profile?.business_name || teamRecord) {
                     router.push('/dashboard');
                 } else {
                     router.push('/auth/complete-profile');

@@ -180,10 +180,13 @@ function teamInviteEmail({ memberEmail, memberName, ownerName, businessName, rol
         <tr><td style="padding:6px 0;color:#6b7280;font-size:0.85rem;">Szerepkör:</td><td style="padding:6px 0;font-weight:600;text-align:right;">${role}</td></tr>
       </table>
     </div>
-    <div style="text-align:center;">
-      <a href="https://foglaljvelem.hu/auth/login" style="display:inline-block;background:linear-gradient(135deg,#2563eb,#7c3aed);color:white;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:600;font-size:0.95rem;">🔑 Bejelentkezés</a>
+    <div style="background:#fffdf0;border-radius:12px;padding:16px;border:1px solid #fde68a;margin-bottom:20px;">
+      <p style="margin:0;color:#374151;font-size:0.85rem;line-height:1.6;">📌 <strong>Fontos:</strong> Regisztrálj ezzel az email címmel (<strong>${memberEmail}</strong>) a FoglaljVelem rendszerbe, hogy hozzáférj a csapat foglalásaihoz.</p>
     </div>
-    <p style="color:#6b7280;font-size:0.8rem;text-align:center;margin-top:20px;">Jelentkezz be a FoglaljVelem rendszerbe ezzel az email címmel, hogy hozzáférj a csapat naptárához.</p>
+    <div style="text-align:center;">
+      <a href="https://foglaljvelem.hu/auth/register" style="display:inline-block;background:linear-gradient(135deg,#2563eb,#7c3aed);color:white;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:600;font-size:0.95rem;">🚀 Regisztráció</a>
+    </div>
+    <p style="color:#6b7280;font-size:0.8rem;text-align:center;margin-top:16px;">Ha már van fiókod ezzel az email címmel, <a href="https://foglaljvelem.hu/auth/login" style="color:#2563eb;">jelentkezz be itt</a>.</p>
   </div>
   <p style="text-align:center;color:#9ca3af;font-size:0.75rem;margin-top:16px;">FoglaljVelem.hu – Online időpontfoglalás</p>
 </div>

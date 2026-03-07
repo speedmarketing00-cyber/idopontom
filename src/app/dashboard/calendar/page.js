@@ -9,7 +9,8 @@ import s from '../dashboard.module.css';
 const weekDays = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap'];
 
 export default function CalendarPage() {
-    const { profile } = useAuth();
+    const { profile, teamMemberInfo } = useAuth();
+    const effectiveProfileId = teamMemberInfo?.ownerProfileId || profile?.id;
     const [view, setView] = useState('week');
     const [selectedDay, setSelectedDay] = useState(0);
     const [events, setEvents] = useState([]);
@@ -18,12 +19,15 @@ export default function CalendarPage() {
     const today = new Date();
 
     useEffect(() => {
-        if (isSupabaseConfigured && profile?.id) {
+        if (isSupabaseConfigured && effectiveProfileId) {
             Promise.all([
-                getBookings(profile.id),
-                supabase.from('availability').select('*').eq('profile_id', profile.id).eq('is_active', true),
+                getBookings(effectiveProfileId),
+                supabase.from('availability').select('*').eq('profile_id', effectiveProfileId).eq('is_active', true),
             ]).then(([bookingData, { data: availData }]) => {
-                const mapped = bookingData.map(b => {
+                const filtered = teamMemberInfo
+                    ? bookingData.filter(b => b.team_member_id === teamMemberInfo.teamMemberId)
+                    : bookingData;
+                const mapped = filtered.map(b => {
                     const h = parseInt(b.start_time?.split(':')[0] || '9');
                     const m = parseInt(b.start_time?.split(':')[1] || '0');
                     const dur = b.services?.duration_minutes || 30;
@@ -35,7 +39,7 @@ export default function CalendarPage() {
                 setAvailability(availData || []);
             });
         }
-    }, [profile]);
+    }, [profile, teamMemberInfo]);
 
     // Calculate time range from availability settings
     const getTimeRange = () => {

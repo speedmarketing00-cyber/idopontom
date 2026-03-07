@@ -7,20 +7,21 @@ const AuthContext = createContext({});
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState(null);
+    const [teamMemberInfo, setTeamMemberInfo] = useState(null); // { teamMemberId, ownerProfileId, ownerProfile }
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (isSupabaseConfigured && supabase) {
             supabase.auth.getSession().then(({ data: { session } }) => {
                 setUser(session?.user ?? null);
-                if (session?.user) fetchProfile(session.user.id);
+                if (session?.user) fetchProfile(session.user.id, session.user.email);
                 else setLoading(false);
             });
 
             const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
                 setUser(session?.user ?? null);
-                if (session?.user) fetchProfile(session.user.id);
-                else { setProfile(null); setLoading(false); }
+                if (session?.user) fetchProfile(session.user.id, session.user.email);
+                else { setProfile(null); setTeamMemberInfo(null); setLoading(false); }
             });
 
             return () => subscription.unsubscribe();
@@ -35,15 +36,44 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
-    const fetchProfile = async (userId) => {
+    const fetchProfile = async (userId, userEmail) => {
         if (!supabase) return;
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('profiles')
             .select('*')
             .eq('user_id', userId)
             .single();
 
         if (data) setProfile(data);
+
+        // Check if this user is also a team member of someone
+        if (userEmail) {
+            const { data: teamRecord } = await supabase
+                .from('team_members')
+                .select('*, profiles!team_members_profile_id_fkey(*)')
+                .eq('email', userEmail)
+                .eq('is_active', true)
+                .maybeSingle();
+
+            if (teamRecord?.profiles) {
+                setTeamMemberInfo({
+                    teamMemberId: teamRecord.id,
+                    teamMemberName: teamRecord.name,
+                    teamMemberRole: teamRecord.role,
+                    ownerProfileId: teamRecord.profile_id,
+                    ownerProfile: teamRecord.profiles,
+                });
+                // If no own profile exists yet, use owner's profile data as base
+                if (!data) {
+                    setProfile({
+                        ...teamRecord.profiles,
+                        name: teamRecord.name,
+                        _isTeamMemberOnly: true,
+                    });
+                }
+            }
+        }
+
         setLoading(false);
     };
 
@@ -162,7 +192,8 @@ export function AuthProvider({ children }) {
         <AuthContext.Provider value={{
             user, profile, loading, signIn, signUp, signOut,
             signInWithGoogle, updateProfile,
-            getGoogleAccessToken, isSupabaseConfigured
+            getGoogleAccessToken, isSupabaseConfigured,
+            teamMemberInfo,
         }}>
             {children}
         </AuthContext.Provider>

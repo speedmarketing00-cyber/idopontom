@@ -14,6 +14,7 @@ export default function TeamPage() {
     const [isAdding, setIsAdding] = useState(false);
     const [form, setForm] = useState({ name: '', email: '', role: 'Fodrász' });
     const [loading, setLoading] = useState(true);
+    const [emailStatus, setEmailStatus] = useState({}); // { [memberId]: 'sending' | 'sent' | 'error' }
 
     // Load team members from DB
     useEffect(() => {
@@ -27,6 +28,34 @@ export default function TeamPage() {
         load();
     }, [profile?.id, isProfi]);
 
+    const sendInviteEmail = async (member) => {
+        setEmailStatus(prev => ({ ...prev, [member.id]: 'sending' }));
+        try {
+            const res = await fetch('/api/email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'team_invite',
+                    data: {
+                        memberEmail: member.email,
+                        memberName: member.name,
+                        ownerName: profile?.name || profile?.business_name || 'Tulajdonos',
+                        businessName: profile?.business_name || 'Vállalkozás',
+                        role: member.role,
+                    },
+                }),
+            });
+            if (res.ok) {
+                setEmailStatus(prev => ({ ...prev, [member.id]: 'sent' }));
+                setTimeout(() => setEmailStatus(prev => ({ ...prev, [member.id]: null })), 3000);
+            } else {
+                setEmailStatus(prev => ({ ...prev, [member.id]: 'error' }));
+            }
+        } catch {
+            setEmailStatus(prev => ({ ...prev, [member.id]: 'error' }));
+        }
+    };
+
     const handleAdd = async () => {
         if (!form.name || !form.email || !profile?.id) return;
         if (members.length >= 9) return; // max 10 including owner
@@ -35,25 +64,7 @@ export default function TeamPage() {
         }).select().single();
         if (!error && data) {
             setMembers(prev => [...prev, data]);
-            // Send invitation email
-            try {
-                await fetch('/api/email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'team_invite',
-                        data: {
-                            memberEmail: form.email,
-                            memberName: form.name,
-                            ownerName: profile?.name || profile?.business_name || 'Tulajdonos',
-                            businessName: profile?.business_name || 'Vállalkozás',
-                            role: form.role,
-                        },
-                    }),
-                });
-            } catch (emailErr) {
-                console.warn('Team invite email error:', emailErr);
-            }
+            await sendInviteEmail(data);
         }
         setForm({ name: '', email: '', role: 'Fodrász' });
         setIsAdding(false);
@@ -201,6 +212,15 @@ export default function TeamPage() {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <span className="badge badge-primary">{m.role}</span>
+                                <button
+                                    onClick={() => sendInviteEmail(m)}
+                                    disabled={emailStatus[m.id] === 'sending'}
+                                    className="btn btn-ghost btn-sm"
+                                    title="Meghívó újraküldése"
+                                    style={{ fontSize: '0.75rem', color: emailStatus[m.id] === 'sent' ? 'var(--success)' : emailStatus[m.id] === 'error' ? 'var(--error)' : 'var(--gray-500)' }}
+                                >
+                                    {emailStatus[m.id] === 'sending' ? '⏳' : emailStatus[m.id] === 'sent' ? '✓ Elküldve' : emailStatus[m.id] === 'error' ? '✗ Hiba' : '📧'}
+                                </button>
                                 <button onClick={() => handleToggle(m.id)} className="btn btn-ghost btn-sm">{m.is_active ? '✅' : '❌'}</button>
                                 <button onClick={() => handleRemove(m.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }}>🗑</button>
                             </div>

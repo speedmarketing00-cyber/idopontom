@@ -7,23 +7,31 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import s from '../dashboard.module.css';
 
 export default function BookingsPage() {
-    const { profile } = useAuth();
+    const { profile, teamMemberInfo } = useAuth();
     const [bookings, setBookings] = useState([]);
     const [filter, setFilter] = useState('all');
     const [teamMembers, setTeamMembers] = useState([]);
     const [memberFilter, setMemberFilter] = useState('all');
-    const tier = profile?.subscription_tier || 'free';
+    const effectiveProfileId = teamMemberInfo?.ownerProfileId || profile?.id;
+    const tier = teamMemberInfo ? 'pro' : (profile?.subscription_tier || 'free');
     const isProfi = tier === 'pro';
 
     useEffect(() => {
-        if (isSupabaseConfigured && profile?.id) {
-            getBookings(profile.id).then(data => setBookings(data));
-            if (isProfi) {
-                supabase.from('team_members').select('*').eq('profile_id', profile.id)
+        if (isSupabaseConfigured && effectiveProfileId) {
+            getBookings(effectiveProfileId).then(data => {
+                // Team members only see their own bookings
+                if (teamMemberInfo) {
+                    setBookings(data.filter(b => b.team_member_id === teamMemberInfo.teamMemberId));
+                } else {
+                    setBookings(data);
+                }
+            });
+            if (isProfi && !teamMemberInfo) {
+                supabase.from('team_members').select('*').eq('profile_id', effectiveProfileId)
                     .order('created_at').then(({ data }) => setTeamMembers(data || []));
             }
         }
-    }, [profile]);
+    }, [profile, teamMemberInfo]);
 
     const filtered = bookings
         .filter(b => filter === 'all' ? true : b.status === filter)
