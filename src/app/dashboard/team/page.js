@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthProvider';
-import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import s from '../dashboard.module.css';
 
@@ -14,85 +13,74 @@ export default function TeamPage() {
     const [isAdding, setIsAdding] = useState(false);
     const [form, setForm] = useState({ name: '', email: '' });
     const [loading, setLoading] = useState(true);
-    const [emailStatus, setEmailStatus] = useState({}); // { [memberId]: 'sending' | 'sent' | 'error' }
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
 
-    // Load team members from DB
+    // Load team members via API (admin supabase – bypasses RLS)
     useEffect(() => {
         async function load() {
             if (!profile?.id || !isProfi) { setLoading(false); return; }
-            const { data } = await supabase.from('team_members').select('*')
-                .eq('profile_id', profile.id).order('created_at');
-            setMembers(data || []);
+            try {
+                const res = await fetch(`/api/team?profileId=${profile.id}`);
+                const json = await res.json();
+                setMembers(json.members || []);
+            } catch (e) {
+                console.error('Failed to load team:', e);
+            }
             setLoading(false);
         }
         load();
     }, [profile?.id, isProfi]);
 
-    const sendInviteEmail = async (member) => {
-        setEmailStatus(prev => ({ ...prev, [member.id]: 'sending' }));
-        try {
-            const res = await fetch('/api/email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'team_invite',
-                    data: {
-                        memberEmail: member.email,
-                        memberName: member.name,
-                        ownerName: profile?.name || profile?.business_name || 'Tulajdonos',
-                        businessName: profile?.business_name || 'Vállalkozás',
-                        role: member.role,
-                    },
-                }),
-            });
-            if (res.ok) {
-                setEmailStatus(prev => ({ ...prev, [member.id]: 'sent' }));
-                setTimeout(() => setEmailStatus(prev => ({ ...prev, [member.id]: null })), 3000);
-            } else {
-                setEmailStatus(prev => ({ ...prev, [member.id]: 'error' }));
-            }
-        } catch {
-            setEmailStatus(prev => ({ ...prev, [member.id]: 'error' }));
-        }
-    };
-
     const handleAdd = async () => {
         if (!form.name || !form.email || !profile?.id) return;
-        if (members.length >= 8) return; // max 8 team members
-        const { data, error } = await supabase.from('team_members').insert({
-            profile_id: profile.id, name: form.name, email: form.email, role: 'Csapattag', is_active: true
-        }).select().single();
-        if (!error && data) {
-            setMembers(prev => [...prev, data]);
-            await sendInviteEmail(data);
-        }
-        setForm({ name: '', email: '' });
-        setIsAdding(false);
-    };
-
-    const handleRemove = async (id) => {
-        const m = members.find(x => x.id === id);
-        if (m) {
-            // Downgrade tier + send removal notification (fire and forget)
-            fetch('/api/team/remove', {
+        if (members.length >= 8) return;
+        setError('');
+        setSaving(true);
+        try {
+            const res = await fetch('/api/team', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    memberEmail: m.email,
-                    memberName: m.name,
+                    profileId: profile.id,
+                    name: form.name,
+                    email: form.email,
                     ownerName: profile?.name || profile?.business_name || 'Tulajdonos',
                     businessName: profile?.business_name || 'Vállalkozás',
                 }),
-            }).catch(() => {});
+            });
+            const json = await res.json();
+            if (json.member) {
+                setMembers(prev => [...prev, json.member]);
+                setForm({ name: '', email: '' });
+                setIsAdding(false);
+            } else {
+                setError(json.error || 'Hiba történt a meghívás során');
+            }
+        } catch (e) {
+            setError('Hiba a mentés során');
         }
-        await supabase.from('team_members').delete().eq('id', id);
-        setMembers(prev => prev.filter(x => x.id !== id));
+        setSaving(false);
     };
-    const handleToggle = async (id) => {
-        const m = members.find(x => x.id === id);
-        if (!m) return;
-        await supabase.from('team_members').update({ is_active: !m.is_active }).eq('id', id);
-        setMembers(prev => prev.map(x => x.id === id ? { ...x, is_active: !x.is_active } : x));
+
+    const handleRemove = async (member) => {
+        if (!confirm(`Biztosan eltávolítod ${member.name} csapattagot?`)) return;
+        try {
+            await fetch('/api/team/remove', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    memberId: member.id,
+                    memberEmail: member.email,
+                    memberName: member.name,
+                    ownerName: profile?.name || profile?.business_name || 'Tulajdonos',
+                    businessName: profile?.business_name || 'Vállalkozás',
+                }),
+            });
+            setMembers(prev => prev.filter(x => x.id !== member.id));
+        } catch (e) {
+            console.error('Remove error:', e);
+        }
     };
 
     // Free and Alap users see upgrade message
@@ -162,6 +150,15 @@ export default function TeamPage() {
                 </div>
             </div>
 
+            {/* Info: subscription warning */}
+            <div style={{
+                background: '#fffdf0', border: '1px solid #fde68a', borderRadius: 12,
+                padding: 16, marginBottom: 20, fontSize: '0.85rem', color: '#92400e', lineHeight: 1.6,
+            }}>
+                <strong>💡 Fontos:</strong> Ha a meghívni kívánt személynek van fizetős előfizetése (Alap csomag), kérd meg, hogy váltson vissza az <strong>Ingyenes</strong> csomagra a Beállítások oldalon, mielőtt csatlakozik a csapathoz. Így a rendszer nem vonja tovább automatikusan a havidíjat – csapattagként ingyenesen megkapja az Alap csomag funkcióit!
+            </div>
+
+            {/* Progress bar */}
             <div style={{ background: 'linear-gradient(135deg, var(--primary-50), var(--accent-50))', borderRadius: 16, padding: 20, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span style={{ fontSize: '1.5rem' }}>🏢</span>
                 <div>
@@ -173,6 +170,14 @@ export default function TeamPage() {
                 </div>
             </div>
 
+            {/* Error message */}
+            {error && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: 14, marginBottom: 16, color: '#dc2626', fontSize: '0.85rem' }}>
+                    ❌ {error}
+                </div>
+            )}
+
+            {/* Add member form */}
             {isAdding && (
                 <div className={s.contentCard} style={{ marginBottom: 20, padding: 24 }}>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 16 }}>👤 Új csapattag meghívása</h3>
@@ -190,14 +195,17 @@ export default function TeamPage() {
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
-                        <button onClick={handleAdd} className="btn btn-primary btn-sm">📧 Meghívó küldése</button>
-                        <button onClick={() => setIsAdding(false)} className="btn btn-secondary btn-sm">Mégse</button>
+                        <button onClick={handleAdd} className="btn btn-primary btn-sm" disabled={saving}>
+                            {saving ? '⏳ Mentés...' : '📧 Meghívó küldése'}
+                        </button>
+                        <button onClick={() => { setIsAdding(false); setError(''); }} className="btn btn-secondary btn-sm">Mégse</button>
                     </div>
                 </div>
             )}
 
-            {/* Owner card always shown */}
+            {/* Member list */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* Owner card */}
                 <div className={s.contentCard} style={{ padding: 18 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -209,44 +217,45 @@ export default function TeamPage() {
                                 <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{profile?.email}</div>
                             </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <span className="badge badge-primary">Tulajdonos</span>
-                            <span className="btn btn-ghost btn-sm">✅</span>
-                        </div>
+                        <span className="badge badge-primary">Tulajdonos</span>
                     </div>
                 </div>
 
+                {/* Team members */}
                 {members.map(m => (
-                    <div key={m.id} className={s.contentCard} style={{ padding: 18, opacity: m.is_active ? 1 : 0.5 }}>
+                    <div key={m.id} className={s.contentCard} style={{ padding: 18 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, var(--primary-300), var(--accent-300))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700 }}>{(m.name || '?')[0].toUpperCase()}</div>
+                                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, var(--primary-300), var(--accent-300))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700 }}>
+                                    {(m.name || '?')[0].toUpperCase()}
+                                </div>
                                 <div>
                                     <div style={{ fontWeight: 600, color: 'var(--gray-800)' }}>{m.name}</div>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{m.email}</div>
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <span className="badge badge-primary">{m.role}</span>
-                                <button
-                                    onClick={() => sendInviteEmail(m)}
-                                    disabled={emailStatus[m.id] === 'sending'}
-                                    className="btn btn-ghost btn-sm"
-                                    title="Meghívó újraküldése"
-                                    style={{ fontSize: '0.75rem', color: emailStatus[m.id] === 'sent' ? 'var(--success)' : emailStatus[m.id] === 'error' ? 'var(--error)' : 'var(--gray-500)' }}
-                                >
-                                    {emailStatus[m.id] === 'sending' ? '⏳' : emailStatus[m.id] === 'sent' ? '✓ Elküldve' : emailStatus[m.id] === 'error' ? '✗ Hiba' : '📧'}
-                                </button>
-                                <button onClick={() => handleToggle(m.id)} className="btn btn-ghost btn-sm">{m.is_active ? '✅' : '❌'}</button>
-                                <button onClick={() => handleRemove(m.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }}>🗑</button>
-                            </div>
+                            <button
+                                onClick={() => handleRemove(m)}
+                                className="btn btn-ghost btn-sm"
+                                style={{ color: 'var(--error)', fontSize: '0.85rem' }}
+                            >
+                                🗑 Törlés
+                            </button>
                         </div>
                     </div>
                 ))}
 
-                {members.length === 0 && (
+                {/* Empty state */}
+                {!loading && members.length === 0 && (
                     <div className={s.contentCard} style={{ padding: 32, textAlign: 'center' }}>
                         <p style={{ color: 'var(--gray-500)', fontSize: '0.9rem' }}>Még nincs csapattagod. Kattints a <strong>+ Meghívás</strong> gombra!</p>
+                    </div>
+                )}
+
+                {/* Loading state */}
+                {loading && (
+                    <div className={s.contentCard} style={{ padding: 32, textAlign: 'center' }}>
+                        <p style={{ color: 'var(--gray-500)', fontSize: '0.9rem' }}>Betöltés...</p>
                     </div>
                 )}
             </div>

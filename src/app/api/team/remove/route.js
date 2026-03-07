@@ -9,8 +9,17 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 
 export async function POST(request) {
     try {
-        const { memberEmail, memberName, ownerName, businessName } = await request.json();
+        const { memberId, memberEmail, memberName, ownerName, businessName } = await request.json();
         if (!memberEmail) return Response.json({ error: 'Missing memberEmail' }, { status: 400 });
+
+        // Delete from team_members table (using admin to bypass RLS)
+        if (supabaseAdmin && memberId) {
+            try {
+                await supabaseAdmin.from('team_members').delete().eq('id', memberId);
+            } catch (e) {
+                console.error('Error deleting team member:', e);
+            }
+        }
 
         // Find the user by email and downgrade subscription_tier basic → free
         if (supabaseAdmin) {
