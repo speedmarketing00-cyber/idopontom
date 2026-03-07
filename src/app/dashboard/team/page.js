@@ -12,7 +12,7 @@ export default function TeamPage() {
 
     const [members, setMembers] = useState([]);
     const [isAdding, setIsAdding] = useState(false);
-    const [form, setForm] = useState({ name: '', email: '', role: 'Fodrász' });
+    const [form, setForm] = useState({ name: '', email: '' });
     const [loading, setLoading] = useState(true);
     const [emailStatus, setEmailStatus] = useState({}); // { [memberId]: 'sending' | 'sent' | 'error' }
 
@@ -60,13 +60,13 @@ export default function TeamPage() {
         if (!form.name || !form.email || !profile?.id) return;
         if (members.length >= 8) return; // max 8 team members
         const { data, error } = await supabase.from('team_members').insert({
-            profile_id: profile.id, name: form.name, email: form.email, role: form.role, is_active: true
+            profile_id: profile.id, name: form.name, email: form.email, role: 'Csapattag', is_active: true
         }).select().single();
         if (!error && data) {
             setMembers(prev => [...prev, data]);
             await sendInviteEmail(data);
         }
-        setForm({ name: '', email: '', role: 'Fodrász' });
+        setForm({ name: '', email: '' });
         setIsAdding(false);
     };
 
@@ -176,23 +176,17 @@ export default function TeamPage() {
             {isAdding && (
                 <div className={s.contentCard} style={{ marginBottom: 20, padding: 24 }}>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 16 }}>👤 Új csapattag meghívása</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: 12 }}>
+                        A meghívott kolléga maga regisztrál és állítja be a profilját. Automatikusan ⭐ Alap csomagot kap, amíg a csapat tagja.
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div className="input-group">
                             <label className="input-label">Név</label>
                             <input className="input" placeholder="Vezetéknév Keresztnév" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
                         </div>
                         <div className="input-group">
-                            <label className="input-label">E-mail</label>
+                            <label className="input-label">E-mail cím</label>
                             <input className="input" placeholder="email@pelda.hu" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
-                        </div>
-                        <div className="input-group">
-                            <label className="input-label">Szerepkör</label>
-                            <select className="input" value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}>
-                                <option>Fodrász</option>
-                                <option>Kozmetikus</option>
-                                <option>Asszisztens</option>
-                                <option>Admin</option>
-                            </select>
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
