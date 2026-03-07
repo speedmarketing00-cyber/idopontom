@@ -14,7 +14,7 @@ export function AuthProvider({ children }) {
         if (isSupabaseConfigured && supabase) {
             supabase.auth.getSession().then(({ data: { session } }) => {
                 setUser(session?.user ?? null);
-                if (session?.user) fetchProfile(session.user.id, session.user.email);
+                if (session?.user) fetchProfile(session.user.id, session.user.email); // eslint-disable-line react-hooks/immutability
                 else setLoading(false);
             });
 

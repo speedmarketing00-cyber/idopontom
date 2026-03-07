@@ -167,7 +167,7 @@ export default function EmailSettingsPage() {
                         background: 'var(--primary-50)', border: '1px solid var(--primary-100)',
                     }}>
                         <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Előnézet</div>
-                        <p style={{ margin: 0, color: 'var(--gray-700)', fontSize: '0.9rem', fontStyle: 'italic' }}>"{settings.custom_greeting}"</p>
+                        <p style={{ margin: 0, color: 'var(--gray-700)', fontSize: '0.9rem', fontStyle: 'italic' }}>&quot;{settings.custom_greeting}&quot;</p>
                     </div>
                 )}
             </div>

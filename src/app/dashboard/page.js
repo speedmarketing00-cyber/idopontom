@@ -24,7 +24,7 @@ export default function DashboardPage() {
                 setLoadedFromDb(true);
             });
         } else {
-            setLoadedFromDb(true);
+            setLoadedFromDb(true); // eslint-disable-line react-hooks/set-state-in-effect
         }
     }, [profile]);
 
