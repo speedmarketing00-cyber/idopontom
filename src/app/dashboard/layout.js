@@ -104,25 +104,6 @@ export default function DashboardLayout({ children }) {
             </aside>
             <main className={s.main}>
                 <button className={s.mobileToggle} onClick={() => setSidebarOpen(true)}>☰</button>
-                {/* Persistent top bar – logout always visible on all devices */}
-                <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-                    gap: 10, padding: '10px 20px',
-                    borderBottom: '1px solid var(--gray-100)',
-                    background: 'white', position: 'sticky', top: 0, zIndex: 9,
-                }}>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{displayEmail}</span>
-                    <button
-                        onClick={handleLogout}
-                        style={{
-                            background: 'none', border: '1px solid #fee2e2', borderRadius: 8,
-                            padding: '5px 12px', fontSize: '0.8rem', color: '#dc2626',
-                            cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
-                        }}
-                    >
-                        🚪 Kijelentkezés
-                    </button>
-                </div>
                 {children}
             </main>
         </div>
