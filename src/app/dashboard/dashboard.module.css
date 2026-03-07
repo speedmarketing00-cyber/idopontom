@@ -1,0 +1,513 @@
+.dashboard {
+    display: flex;
+    min-height: 100vh;
+    background: var(--gray-50);
+}
+
+/* Sidebar */
+.sidebar {
+    width: 260px;
+    background: white;
+    border-right: 1px solid var(--gray-100);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    transition: transform 0.3s;
+}
+
+.sidebarHeader {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--gray-100);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sidebarLogo {
+    font-size: 1.5rem;
+}
+
+.sidebarTitle {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.sidebarNav {
+    flex: 1;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.navItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 16px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--gray-600);
+    text-decoration: none;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+}
+
+.navItem:hover {
+    background: var(--gray-50);
+    color: var(--gray-800);
+}
+
+.navItem.active {
+    background: linear-gradient(135deg, var(--primary-50), var(--primary-100));
+    color: var(--primary-700);
+    font-weight: 600;
+}
+
+.navItem.locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.navIcon {
+    font-size: 1.2rem;
+    width: 24px;
+    text-align: center;
+}
+
+.navDivider {
+    height: 1px;
+    background: var(--gray-100);
+    margin: 8px 0;
+}
+
+.sidebarFooter {
+    padding: 16px;
+    border-top: 1px solid var(--gray-100);
+}
+
+.userCard {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    transition: background 0.2s;
+    cursor: pointer;
+}
+
+.userCard:hover {
+    background: var(--gray-50);
+}
+
+.userAvatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--primary-300), var(--accent-300));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: white;
+}
+
+.userName {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--gray-800);
+}
+
+.userEmail {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+}
+
+.tierBadge {
+    margin-top: 8px;
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.tierFree {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+
+.tierBasic {
+    background: var(--primary-100);
+    color: var(--primary-700);
+}
+
+.tierPro {
+    background: var(--accent-100);
+    color: var(--accent-800);
+}
+
+/* Main content */
+.main {
+    flex: 1;
+    margin-left: 260px;
+    padding: 24px 32px;
+    min-height: 100vh;
+}
+
+.topBar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+}
+
+.topBarLeft h1 {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--gray-900);
+}
+
+.topBarLeft p {
+    font-size: 0.9rem;
+    color: var(--gray-500);
+    margin-top: 4px;
+}
+
+.topBarRight {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.mobileToggle {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 8px;
+}
+
+.overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 99;
+}
+
+/* Stats grid */
+.statsGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.statCard {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    border: 1px solid var(--gray-100);
+    transition: all 0.2s;
+}
+
+.statCard:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.statCardIcon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    margin-bottom: 16px;
+}
+
+.statCardValue {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--gray-900);
+}
+
+.statCardLabel {
+    font-size: 0.85rem;
+    color: var(--gray-500);
+    margin-top: 4px;
+}
+
+.statCardChange {
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+.statUp {
+    color: var(--success);
+}
+
+.statDown {
+    color: var(--error);
+}
+
+/* Content grid */
+.contentGrid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 24px;
+}
+
+.contentCard {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    border: 1px solid var(--gray-100);
+}
+
+.cardHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.cardHeader h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--gray-800);
+}
+
+.bookingItem {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--gray-50);
+}
+
+.bookingItem:last-child {
+    border-bottom: none;
+}
+
+.bookingTime {
+    background: var(--primary-50);
+    border-radius: 10px;
+    padding: 8px 12px;
+    text-align: center;
+    min-width: 60px;
+}
+
+.bookingTimeH {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary-700);
+}
+
+.bookingTimeM {
+    font-size: 0.7rem;
+    color: var(--primary-500);
+}
+
+.bookingInfo {
+    flex: 1;
+}
+
+.bookingName {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--gray-800);
+}
+
+.bookingService {
+    font-size: 0.8rem;
+    color: var(--gray-500);
+}
+
+.bookingStatus {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.statusConfirmed {
+    background: var(--success-light);
+    color: #065f46;
+}
+
+.statusPending {
+    background: var(--warning-light);
+    color: #92400e;
+}
+
+.quickActions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.quickAction {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--gray-100);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    color: inherit;
+    background: white;
+    width: 100%;
+    text-align: left;
+    font-size: inherit;
+    font-family: inherit;
+}
+
+.quickAction:hover {
+    border-color: var(--primary-200);
+    background: var(--primary-50);
+}
+
+.qaIcon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.qaTitle {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--gray-800);
+}
+
+.qaDesc {
+    font-size: 0.8rem;
+    color: var(--gray-500);
+}
+
+@media (max-width: 1024px) {
+    .statsGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .contentGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%);
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .main {
+        margin-left: 0;
+        padding: 12px;
+    }
+
+    .mobileToggle {
+        display: block;
+    }
+
+    .overlay.show {
+        display: block;
+    }
+
+    .statsGrid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .statCard {
+        padding: 14px;
+    }
+
+    .statCardValue {
+        font-size: 1.25rem;
+    }
+
+    .statCardLabel {
+        font-size: 0.75rem;
+    }
+
+    .contentCard {
+        padding: 16px !important;
+        overflow-x: auto;
+    }
+
+    .topBar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .topBarLeft h1 {
+        font-size: 1.35rem;
+    }
+
+    .topBarRight {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .bookingItem {
+        gap: 10px;
+    }
+
+    .bookingTime {
+        min-width: 48px;
+        padding: 6px 8px;
+    }
+
+    .bookingTimeH {
+        font-size: 0.85rem;
+    }
+
+    .bookingName {
+        font-size: 0.8rem;
+    }
+
+    .bookingService {
+        font-size: 0.7rem;
+    }
+
+    .bookingStatus {
+        font-size: 0.65rem;
+        padding: 3px 8px;
+    }
+
+    .quickAction {
+        padding: 12px;
+    }
+}
