@@ -2,11 +2,58 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getBookings } from '@/lib/db';
+import { getBookings, updateBookingStatus } from '@/lib/db';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import s from '../dashboard.module.css';
 
+// ─── Mini booking popup in calendar ─────────────────────────────────────────
+function CalendarBookingPopup({ booking, onClose, onStatusChange }) {
+    const statusLabels = {
+        confirmed: { label: '✓ Megerősítve', bg: '#dcfce7', color: '#166534' },
+        pending:   { label: '⏳ Várakozik',  bg: '#fef9c3', color: '#854d0e' },
+        cancelled: { label: '✗ Lemondva',    bg: '#fee2e2', color: '#991b1b' },
+    };
+    const st = statusLabels[booking.status] || statusLabels.pending;
+
+    return (
+        <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+            onClick={onClose}
+        >
+            <div
+                style={{ background: 'white', borderRadius: 16, padding: 24, maxWidth: 400, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+                onClick={e => e.stopPropagation()}
+            >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                    <div>
+                        <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--gray-800)' }}>{booking.client_name}</div>
+                        <span style={{ display: 'inline-block', marginTop: 4, padding: '3px 10px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600, background: st.bg, color: st.color }}>{st.label}</span>
+                    </div>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--gray-400)' }}>✕</button>
+                </div>
+                <div style={{ background: 'var(--gray-50)', borderRadius: 10, padding: 16, marginBottom: 16, fontSize: '0.875rem', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div><span style={{ color: 'var(--gray-500)' }}>📋 Szolgáltatás: </span><strong>{booking.services?.name || '–'}</strong></div>
+                    <div><span style={{ color: 'var(--gray-500)' }}>📅 Dátum: </span><strong>{booking.booking_date}</strong></div>
+                    <div><span style={{ color: 'var(--gray-500)' }}>🕐 Időpont: </span><strong>{booking.start_time?.slice(0,5)} • {booking.services?.duration_minutes || 30} perc</strong></div>
+                    <div><span style={{ color: 'var(--gray-500)' }}>📧 E-mail: </span><strong>{booking.client_email}</strong></div>
+                    {booking.client_phone && <div><span style={{ color: 'var(--gray-500)' }}>📞 Telefon: </span><strong>{booking.client_phone}</strong></div>}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    {booking.status === 'pending' && (
+                        <button onClick={() => { onStatusChange(booking.id, 'confirmed'); onClose(); }} className="btn btn-sm" style={{ background: '#22c55e', color: 'white', flex: 1 }}>✓ Megerősítés</button>
+                    )}
+                    {booking.status !== 'cancelled' && (
+                        <button onClick={() => { onStatusChange(booking.id, 'cancelled'); onClose(); }} className="btn btn-sm" style={{ background: 'var(--error-light)', color: '#991b1b', flex: 1 }}>✗ Lemondás</button>
+                    )}
+                    <button onClick={onClose} className="btn btn-sm btn-secondary" style={{ flex: 1 }}>Bezárás</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 const weekDays = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap'];
+const dayAbbr  = ['H',     'K',    'Sze',    'Cs',        'P',      'Szo',     'V'];
 
 export default function CalendarPage() {
     const { profile, teamMemberInfo } = useAuth();
@@ -15,6 +62,7 @@ export default function CalendarPage() {
     const [selectedDay, setSelectedDay] = useState(0);
     const [events, setEvents] = useState([]);
     const [availability, setAvailability] = useState([]);
+    const [selectedBooking, setSelectedBooking] = useState(null);
 
     const today = new Date();
 
@@ -33,7 +81,7 @@ export default function CalendarPage() {
                     const dur = b.services?.duration_minutes || 30;
                     const d = new Date(b.booking_date);
                     const dayOfWeek = (d.getDay() + 6) % 7;
-                    return { day: dayOfWeek, startH: h + m / 60, dur: dur / 60, name: b.client_name, service: b.services?.name || 'Foglalás', color: 'var(--primary-200)' };
+                    return { day: dayOfWeek, startH: h + m / 60, dur: dur / 60, name: b.client_name, service: b.services?.name || 'Foglalás', color: 'var(--primary-200)', raw: b };
                 });
                 setEvents(mapped);
                 setAvailability(availData || []);
@@ -70,14 +118,26 @@ export default function CalendarPage() {
         return `${d.getMonth() + 1}.${d.getDate()}.`;
     };
 
+    const handleStatusChange = async (id, status) => {
+        if (isSupabaseConfigured) await updateBookingStatus(id, status);
+        setEvents(prev => prev.map(ev => ev.raw?.id === id ? { ...ev, raw: { ...ev.raw, status } } : ev));
+    };
+
     const isEmpty = events.length === 0;
 
     return (
         <div>
+            {selectedBooking && (
+                <CalendarBookingPopup
+                    booking={selectedBooking}
+                    onClose={() => setSelectedBooking(null)}
+                    onStatusChange={handleStatusChange}
+                />
+            )}
             <div className={s.topBar}>
                 <div className={s.topBarLeft}>
                     <h1>Naptár 📅</h1>
-                    <p>Heti nézet – {today.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })}</p>
+                    <p>{view === 'week' ? 'Heti nézet' : 'Napi nézet'} – {today.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })}</p>
                 </div>
                 <div className={s.topBarRight}>
                     <button onClick={() => setView('week')} className={`btn btn-sm ${view === 'week' ? 'btn-primary' : 'btn-secondary'}`}>Heti</button>
@@ -119,7 +179,7 @@ export default function CalendarPage() {
                                     return (
                                         <div key={di} style={{ borderLeft: '1px solid var(--gray-100)', borderBottom: '1px solid var(--gray-50)', padding: 2, height: 64, position: 'relative' }}>
                                             {dayEvents.map((ev, ei) => (
-                                                <div key={ei} style={{
+                                                <div key={ei} onClick={() => ev.raw && setSelectedBooking(ev.raw)} style={{
                                                     position: 'absolute', top: (ev.startH - h) * 64,
                                                     left: 2, right: 2, height: Math.max(ev.dur * 64 - 2, 20),
                                                     background: ev.color || 'var(--primary-200)', borderRadius: 6, padding: '4px 8px',
@@ -143,7 +203,7 @@ export default function CalendarPage() {
                                 <button key={i} onClick={() => setSelectedDay(i)} className="btn btn-sm" style={{
                                     background: selectedDay === i ? 'var(--primary-500)' : 'white', color: selectedDay === i ? 'white' : 'var(--gray-600)',
                                     border: `1.5px solid ${selectedDay === i ? 'var(--primary-500)' : 'var(--gray-200)'}`, flex: 1,
-                                }}>{d.slice(0, 2)}</button>
+                                }}>{dayAbbr[i]}</button>
                             ))}
                         </div>
                         {halfHourSlots.map((slot, idx) => {
@@ -167,7 +227,7 @@ export default function CalendarPage() {
                                     }}>{slot.label}</span>
                                     <div style={{ flex: 1 }}>
                                         {dayEvents.map((ev, i) => (
-                                            <div key={i} style={{ background: ev.color || 'var(--primary-200)', padding: '10px 14px', borderRadius: 10, marginBottom: 4, borderLeft: '3px solid var(--primary-500)' }}>
+                                            <div key={i} onClick={() => ev.raw && setSelectedBooking(ev.raw)} style={{ background: ev.color || 'var(--primary-200)', padding: '10px 14px', borderRadius: 10, marginBottom: 4, borderLeft: '3px solid var(--primary-500)', cursor: 'pointer' }}>
                                                 <strong style={{ fontSize: '0.9rem' }}>{ev.name}</strong>
                                                 <span style={{ fontSize: '0.8rem', color: 'var(--gray-600)', marginLeft: 8 }}>{ev.service} • {Math.round(ev.dur * 60)} perc</span>
                                             </div>

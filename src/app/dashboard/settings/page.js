@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import s from '../dashboard.module.css';
 
 export default function SettingsPage() {
-    const { profile, updateProfile, signOut } = useAuth();
+    const { profile, user, updateProfile, signOut } = useAuth();
     const searchParams = useSearchParams();
     const [form, setForm] = useState({
         name: profile?.name || '',
@@ -30,7 +30,7 @@ export default function SettingsPage() {
         if (profile) {
             setForm({
                 name: profile.name || '',
-                email: profile.email || '',
+                email: user?.email || profile.email || '',
                 business_name: profile.business_name || profile.businessName || '',
                 phone: profile.phone || '',
                 slug: profile.slug || '',
@@ -85,13 +85,13 @@ export default function SettingsPage() {
         await supabase.from('profiles').update({ avatar_url: null }).eq('id', profile.id);
     };
 
-    const plan = profile?.plan || 'ingyenes';
+    const tier = profile?.subscription_tier || 'free';
     const planInfo = {
-        ingyenes: { emoji: '🆓', label: 'Ingyenes', desc: 'Alap funkciók – korlátozott', price: '0 Ft/hó' },
-        alap: { emoji: '⭐', label: 'Alap', desc: 'Minden funkció – 1 felhasználó', price: '4 997 Ft/hó' },
-        profi: { emoji: '🏢', label: 'Profi', desc: 'Csapatkezelés – 6-10 felhasználó', price: '19 997 Ft/hó' },
+        free:  { emoji: '🆓', label: 'Ingyenes', desc: 'Alap funkciók – korlátozott', price: '0 Ft/hó' },
+        basic: { emoji: '⭐', label: 'Alap', desc: 'Minden funkció – 1 felhasználó', price: '4 997 Ft/hó' },
+        pro:   { emoji: '🏢', label: 'Profi', desc: 'Csapatkezelés – 6-10 felhasználó', price: '19 997 Ft/hó' },
     };
-    const currentPlan = planInfo[plan] || planInfo.ingyenes;
+    const currentPlan = planInfo[tier] || planInfo.free;
 
     const handleSubscribe = async (planName) => {
         setSubLoading(planName);
@@ -218,7 +218,7 @@ export default function SettingsPage() {
                         <div style={{ fontWeight: 700, color: 'var(--gray-800)' }}>{currentPlan.label} csomag</div>
                         <div style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>{currentPlan.desc} • {currentPlan.price}</div>
                     </div>
-                    {plan !== 'ingyenes' && profile?.stripe_customer_id && (
+                    {tier !== 'free' && profile?.stripe_customer_id && (
                         <button onClick={handleManageSubscription} disabled={subLoading === 'manage'} className="btn btn-secondary btn-sm">
                             {subLoading === 'manage' ? '...' : '⚙️ Előfizetés kezelése'}
                         </button>
@@ -226,7 +226,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Plan options */}
-                {plan === 'ingyenes' && (
+                {tier === 'free' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                         <div style={{ padding: 24, borderRadius: 14, border: '2px solid var(--primary-300)', background: 'white' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>

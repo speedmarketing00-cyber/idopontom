@@ -2,20 +2,25 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getBookings } from '@/lib/db';
+import { getBookings, getBookingStats } from '@/lib/db';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import s from './dashboard.module.css';
 
 export default function DashboardPage() {
     const { profile } = useAuth();
     const [bookings, setBookings] = useState([]);
+    const [stats, setStats] = useState(null);
     const [loadedFromDb, setLoadedFromDb] = useState(false);
 
     useEffect(() => {
         if (isSupabaseConfigured && profile?.id) {
             const today = new Date().toISOString().split('T')[0];
-            getBookings(profile.id, { date: today }).then(data => {
-                setBookings(data);
+            Promise.all([
+                getBookings(profile.id, { date: today }),
+                getBookingStats(profile.id),
+            ]).then(([todayData, statsData]) => {
+                setBookings(todayData);
+                setStats(statsData);
                 setLoadedFromDb(true);
             });
         } else {
@@ -43,9 +48,9 @@ export default function DashboardPage() {
             <div className={s.statsGrid}>
                 {[
                     { icon: '📅', value: String(bookings.length), label: 'Mai foglalások', bg: 'var(--primary-50)' },
-                    { icon: '📆', value: hasBookings ? '47' : '0', label: 'Heti foglalások', bg: 'var(--accent-50)' },
-                    { icon: '⭐', value: hasBookings ? '4.9' : '–', label: 'Átlag értékelés', bg: 'var(--success-light)' },
-                    { icon: '💰', value: hasBookings ? '185k Ft' : '0 Ft', label: 'Havi bevétel', bg: '#ede9fe' },
+                    { icon: '📆', value: stats ? String(stats.week) : '0', label: 'Heti foglalások', bg: 'var(--accent-50)' },
+                    { icon: '📊', value: stats ? String(stats.month) : '0', label: 'Havi foglalások', bg: 'var(--success-light)' },
+                    { icon: '📋', value: stats ? String(stats.total) : '0', label: 'Összes foglalás', bg: '#ede9fe' },
                 ].map((stat, i) => (
                     <div key={i} className={s.statCard}>
                         <div className={s.statCardIcon} style={{ background: stat.bg }}>{stat.icon}</div>
