@@ -109,20 +109,30 @@ function bookingCancelledEmail({ clientName, clientEmail, serviceName, date, tim
     to: clientEmail,
     subject: `❌ Foglalás lemondva – ${providerName}`,
     html: `
-<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
 <body style="margin:0;padding:0;background:#f0f7ff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
 <div style="max-width:520px;margin:0 auto;padding:32px 16px;">
   <div style="background:white;border-radius:16px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
     <div style="text-align:center;margin-bottom:20px;">
       <span style="font-size:2rem;">❌</span>
-      <h1 style="font-size:1.3rem;color:#dc2626;margin:8px 0 4px;">Foglalás lemondva</h1>
-      <p style="color:#6b7280;font-size:0.9rem;margin:0;">Kedves ${clientName}, az alábbi foglalásod lemondásra került.</p>
+      <h1 style="font-size:1.3rem;color:#dc2626;margin:8px 0 4px;">Foglalásod lemondásra került</h1>
+      <p style="color:#6b7280;font-size:0.9rem;margin:0;">Kedves ${clientName}!</p>
     </div>
-    <div style="background:#fef2f2;border-radius:12px;padding:20px;">
-      <p style="margin:0;font-weight:600;text-decoration:line-through;">${serviceName}</p>
-      <p style="margin:4px 0 0;color:#6b7280;text-decoration:line-through;">${date} – ${time} • ${providerName}</p>
+    <div style="background:#fef2f2;border-radius:12px;padding:20px;border:1px solid #fca5a5;margin-bottom:20px;">
+      <p style="margin:0;color:#374151;font-size:0.95rem;">Az alábbi időpontodat lemondták:</p>
+      <table style="width:100%;border-collapse:collapse;margin-top:10px;">
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:0.85rem;">📋 Szolgáltatás:</td><td style="padding:4px 0;font-weight:600;text-align:right;text-decoration:line-through;">${serviceName}</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:0.85rem;">📅 Dátum:</td><td style="padding:4px 0;font-weight:600;text-align:right;text-decoration:line-through;">${date}</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:0.85rem;">🕐 Időpont:</td><td style="padding:4px 0;font-weight:600;text-align:right;text-decoration:line-through;">${time}</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:0.85rem;">🏢 Szolgáltató:</td><td style="padding:4px 0;font-weight:600;text-align:right;">${providerName}</td></tr>
+      </table>
     </div>
+    <div style="background:#fffdf0;border-radius:12px;padding:20px;border:1px solid #fde68a;margin-bottom:20px;">
+      <p style="margin:0;color:#374151;font-size:0.9rem;line-height:1.6;">Ha kérdésed van a lemondás okával kapcsolatban, kérlek keresd fel közvetlenül a szolgáltatót (<strong>${providerName}</strong>) egy új időpont egyeztetéséhez!</p>
+    </div>
+    <p style="color:#6b7280;font-size:0.8rem;text-align:center;margin:0;">Új időpontot bármikor foglalhatsz a szolgáltató oldalán.</p>
   </div>
+  <p style="text-align:center;color:#9ca3af;font-size:0.75rem;margin-top:16px;">FoglaljVelem.hu – Online időpontfoglalás</p>
 </div>
 </body></html>`
   };

@@ -43,7 +43,29 @@ function CalendarBookingPopup({ booking, onClose, onStatusChange }) {
                         <button onClick={() => { onStatusChange(booking.id, 'confirmed'); onClose(); }} className="btn btn-sm" style={{ background: '#22c55e', color: 'white', flex: 1 }}>✓ Megerősítés</button>
                     )}
                     {booking.status !== 'cancelled' && (
-                        <button onClick={() => { onStatusChange(booking.id, 'cancelled'); onClose(); }} className="btn btn-sm" style={{ background: 'var(--error-light)', color: '#991b1b', flex: 1 }}>✗ Lemondás</button>
+                        <button onClick={async () => {
+                            if (!confirm('Biztosan lemondod? Az ügyfél értesítést kap emailben.')) return;
+                            onStatusChange(booking.id, 'cancelled');
+                            // Send cancellation email to client
+                            try {
+                                await fetch('/api/email', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        type: 'booking_cancelled',
+                                        data: {
+                                            clientName: booking.client_name,
+                                            clientEmail: booking.client_email,
+                                            serviceName: booking.services?.name || 'Szolgáltatás',
+                                            date: booking.booking_date,
+                                            time: booking.start_time?.slice(0, 5),
+                                            providerName: booking.profiles?.business_name || booking.profiles?.name || '',
+                                        },
+                                    }),
+                                });
+                            } catch (e) { console.warn('Cancel email error:', e); }
+                            onClose();
+                        }} className="btn btn-sm" style={{ background: 'var(--error-light)', color: '#991b1b', flex: 1 }}>✗ Lemondás</button>
                     )}
                     <button onClick={onClose} className="btn btn-sm btn-secondary" style={{ flex: 1 }}>Bezárás</button>
                 </div>

@@ -43,8 +43,38 @@ export async function POST(request) {
     if (supabaseAdmin && profileId) {
       // Compute end_time from start_time + duration
       const [th, tm] = time.split(':').map(Number);
-      const endTotalMin = th * 60 + tm + (parseInt(duration, 10) || 30);
+      const startMin = th * 60 + tm;
+      const durationMin = parseInt(duration, 10) || 30;
+      const endTotalMin = startMin + durationMin;
       const endTime = `${String(Math.floor(endTotalMin / 60)).padStart(2, '0')}:${String(endTotalMin % 60).padStart(2, '0')}`;
+
+      // ── Server-side double-booking prevention ──
+      // Check if any confirmed booking overlaps with the requested time slot
+      const { data: existingBookings } = await supabaseAdmin.from('bookings')
+        .select('id, start_time, end_time, team_member_id')
+        .eq('profile_id', profileId)
+        .eq('booking_date', date)
+        .eq('status', 'confirmed');
+
+      if (existingBookings && existingBookings.length > 0) {
+        // Filter by team member if applicable
+        const relevantBookings = teamMemberId
+          ? existingBookings.filter(b => b.team_member_id === teamMemberId)
+          : existingBookings;
+
+        const hasOverlap = relevantBookings.some(b => {
+          const [bsh, bsm] = (b.start_time || '00:00').slice(0, 5).split(':').map(Number);
+          const [beh, bem] = (b.end_time || '00:30').slice(0, 5).split(':').map(Number);
+          const bStart = bsh * 60 + bsm;
+          const bEnd = beh * 60 + bem;
+          // Overlap: new slot starts before existing ends AND new slot ends after existing starts
+          return startMin < bEnd && endTotalMin > bStart;
+        });
+
+        if (hasOverlap) {
+          return Response.json({ error: 'Ez az időpont már foglalt! Kérlek válassz másik időpontot.' }, { status: 409 });
+        }
+      }
 
       // Find service_id by name
       let serviceId = null;
