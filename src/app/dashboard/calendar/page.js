@@ -55,6 +55,23 @@ function CalendarBookingPopup({ booking, onClose, onStatusChange }) {
 const weekDays = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap'];
 const dayAbbr  = ['H',     'K',    'Sze',    'Cs',        'P',      'Szo',     'V'];
 
+// ISO week number helper
+function getWeekNumber(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+// Pad to 2 digits
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+// Format date as MM.DD.
+function fmtDate(d) { return `${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}.`; }
+
+// Format date as YYYY-MM-DD (for matching booking_date)
+function toDateStr(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+
 export default function CalendarPage() {
     const { profile, teamMemberInfo } = useAuth();
     const effectiveProfileId = teamMemberInfo?.ownerProfileId || profile?.id;
@@ -63,8 +80,10 @@ export default function CalendarPage() {
     const [events, setEvents] = useState([]);
     const [availability, setAvailability] = useState([]);
     const [selectedBooking, setSelectedBooking] = useState(null);
+    const [monthDayPopup, setMonthDayPopup] = useState(null); // { dateStr, events }
 
     const today = new Date();
+    const weekNum = getWeekNumber(today);
 
     useEffect(() => {
         if (isSupabaseConfigured && effectiveProfileId) {
@@ -112,10 +131,42 @@ export default function CalendarPage() {
         halfHourSlots.push({ h, m: 30, decimal: h + 0.5, label: `${h}:30` });
     }
 
+    // Date string for week header (padded 2 digits)
     const getDateStr = (offset) => {
         const d = new Date(today);
-        d.setDate(today.getDate() - today.getDay() + 1 + offset);
-        return `${d.getMonth() + 1}.${d.getDate()}.`;
+        d.setDate(today.getDate() - ((today.getDay() + 6) % 7) + offset);
+        return fmtDate(d);
+    };
+
+    // Month grid for monthly view
+    const getMonthGrid = () => {
+        const year = today.getFullYear();
+        const month = today.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startDow = (firstDay.getDay() + 6) % 7; // Mon=0
+        const daysInMonth = lastDay.getDate();
+
+        const days = [];
+        // Previous month padding
+        for (let i = startDow - 1; i >= 0; i--) {
+            const d = new Date(year, month, -i);
+            days.push({ date: d, dateStr: toDateStr(d), isCurrentMonth: false, dayNum: d.getDate() });
+        }
+        // Current month days
+        for (let i = 1; i <= daysInMonth; i++) {
+            const d = new Date(year, month, i);
+            days.push({ date: d, dateStr: toDateStr(d), isCurrentMonth: true, dayNum: i });
+        }
+        // Next month padding
+        const remaining = 7 - (days.length % 7);
+        if (remaining < 7) {
+            for (let i = 1; i <= remaining; i++) {
+                const d = new Date(year, month + 1, i);
+                days.push({ date: d, dateStr: toDateStr(d), isCurrentMonth: false, dayNum: i });
+            }
+        }
+        return days;
     };
 
     const handleStatusChange = async (id, status) => {
@@ -124,6 +175,14 @@ export default function CalendarPage() {
     };
 
     const isEmpty = events.length === 0;
+    const todayStr = toDateStr(today);
+
+    // View subtitle
+    const viewSubtitle = view === 'week'
+        ? `Heti nézet – ${weekNum}. hét – ${today.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })}`
+        : view === 'day'
+        ? `Napi nézet – ${weekDays[selectedDay]} – ${today.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })}`
+        : `Havi nézet – ${today.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })} – ${weekNum}. hét`;
 
     return (
         <div>
@@ -137,11 +196,12 @@ export default function CalendarPage() {
             <div className={s.topBar}>
                 <div className={s.topBarLeft}>
                     <h1>Naptár 📅</h1>
-                    <p>{view === 'week' ? 'Heti nézet' : 'Napi nézet'} – {today.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })}</p>
+                    <p>{viewSubtitle}</p>
                 </div>
                 <div className={s.topBarRight}>
-                    <button onClick={() => setView('week')} className={`btn btn-sm ${view === 'week' ? 'btn-primary' : 'btn-secondary'}`}>Heti</button>
                     <button onClick={() => setView('day')} className={`btn btn-sm ${view === 'day' ? 'btn-primary' : 'btn-secondary'}`}>Napi</button>
+                    <button onClick={() => setView('week')} className={`btn btn-sm ${view === 'week' ? 'btn-primary' : 'btn-secondary'}`}>Heti</button>
+                    <button onClick={() => setView('month')} className={`btn btn-sm ${view === 'month' ? 'btn-primary' : 'btn-secondary'}`}>Havi</button>
                 </div>
             </div>
 
@@ -160,9 +220,12 @@ export default function CalendarPage() {
             )}
 
             <div className={s.contentCard} style={{ overflow: 'auto', padding: 0 }}>
-                {view === 'week' ? (
+                {/* ─── WEEKLY VIEW ─── */}
+                {view === 'week' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '70px repeat(7, 1fr)', minWidth: 900 }}>
-                        <div style={{ padding: 12, borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}></div>
+                        <div style={{ padding: 12, borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-500)' }}>{weekNum}. hét</span>
+                        </div>
                         {weekDays.map((d, i) => (
                             <div key={i} style={{ padding: 12, textAlign: 'center', borderBottom: '1px solid var(--gray-100)', borderLeft: '1px solid var(--gray-100)', background: i === ((today.getDay() + 6) % 7) ? 'var(--primary-50)' : 'var(--gray-50)' }}>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', fontWeight: 500 }}>{d}</div>
@@ -196,7 +259,10 @@ export default function CalendarPage() {
                             </div>
                         ))}
                     </div>
-                ) : (
+                )}
+
+                {/* ─── DAILY VIEW ─── */}
+                {view === 'day' && (
                     <div style={{ padding: 24 }}>
                         <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
                             {weekDays.map((d, i) => (
@@ -238,7 +304,138 @@ export default function CalendarPage() {
                         })}
                     </div>
                 )}
+
+                {/* ─── MONTHLY VIEW ─── */}
+                {view === 'month' && (() => {
+                    const monthDays = getMonthGrid();
+                    const weeks = [];
+                    for (let i = 0; i < monthDays.length; i += 7) {
+                        weeks.push(monthDays.slice(i, i + 7));
+                    }
+                    return (
+                        <div style={{ padding: 0 }}>
+                            {/* Month header */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '50px repeat(7, 1fr)' }}>
+                                <div style={{ padding: 10, background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-100)', textAlign: 'center', fontSize: '0.7rem', color: 'var(--gray-400)', fontWeight: 600 }}>Hét</div>
+                                {dayAbbr.map((d, i) => (
+                                    <div key={i} style={{ padding: 10, textAlign: 'center', borderBottom: '1px solid var(--gray-100)', borderLeft: '1px solid var(--gray-100)', background: 'var(--gray-50)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--gray-600)' }}>{d}</div>
+                                ))}
+                            </div>
+                            {/* Month rows */}
+                            {weeks.map((week, wi) => {
+                                const weekNumRow = getWeekNumber(week.find(d => d.isCurrentMonth)?.date || week[0].date);
+                                return (
+                                    <div key={wi} style={{ display: 'grid', gridTemplateColumns: '50px repeat(7, 1fr)' }}>
+                                        <div style={{ padding: 8, textAlign: 'center', borderBottom: '1px solid var(--gray-50)', fontSize: '0.7rem', color: 'var(--primary-500)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            {weekNumRow}.
+                                        </div>
+                                        {week.map((day, di) => {
+                                            const dayEvts = events.filter(ev => ev.raw?.booking_date === day.dateStr);
+                                            const isToday = day.dateStr === todayStr;
+                                            const hasEvents = dayEvts.length > 0;
+                                            return (
+                                                <div
+                                                    key={di}
+                                                    onClick={() => {
+                                                        if (hasEvents) {
+                                                            setMonthDayPopup({ dateStr: day.dateStr, date: day.date, events: dayEvts });
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        borderLeft: '1px solid var(--gray-100)',
+                                                        borderBottom: '1px solid var(--gray-50)',
+                                                        padding: 8,
+                                                        minHeight: 80,
+                                                        background: isToday ? 'var(--primary-50)' : 'white',
+                                                        opacity: day.isCurrentMonth ? 1 : 0.35,
+                                                        cursor: hasEvents ? 'pointer' : 'default',
+                                                        transition: 'background 0.15s',
+                                                    }}
+                                                    onMouseEnter={e => { if (hasEvents) e.currentTarget.style.background = 'var(--primary-50)'; }}
+                                                    onMouseLeave={e => { if (!isToday) e.currentTarget.style.background = 'white'; }}
+                                                >
+                                                    <div style={{
+                                                        fontWeight: isToday ? 800 : 600,
+                                                        fontSize: '0.85rem',
+                                                        color: isToday ? 'var(--primary-600)' : 'var(--gray-700)',
+                                                        marginBottom: 4,
+                                                    }}>
+                                                        {pad2(day.dayNum)}
+                                                    </div>
+                                                    {/* Event indicators */}
+                                                    {dayEvts.slice(0, 3).map((ev, ei) => (
+                                                        <div key={ei} style={{
+                                                            fontSize: '0.65rem',
+                                                            padding: '2px 6px',
+                                                            marginBottom: 2,
+                                                            borderRadius: 4,
+                                                            background: ev.raw?.status === 'cancelled' ? '#fee2e2' : 'var(--primary-100)',
+                                                            color: ev.raw?.status === 'cancelled' ? '#991b1b' : 'var(--primary-700)',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap',
+                                                        }}>
+                                                            {ev.raw?.start_time?.slice(0, 5)} {ev.name}
+                                                        </div>
+                                                    ))}
+                                                    {dayEvts.length > 3 && (
+                                                        <div style={{ fontSize: '0.6rem', color: 'var(--gray-400)', paddingLeft: 6 }}>+{dayEvts.length - 3} további</div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                })()}
             </div>
+
+            {/* ─── Month day popup (when clicking a day with events) ─── */}
+            {monthDayPopup && (
+                <div
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+                    onClick={() => setMonthDayPopup(null)}
+                >
+                    <div
+                        style={{ background: 'white', borderRadius: 16, padding: 24, maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, margin: 0 }}>
+                                📅 {monthDayPopup.date.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })}
+                            </h3>
+                            <button onClick={() => setMonthDayPopup(null)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--gray-400)' }}>✕</button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {monthDayPopup.events.map((ev, i) => {
+                                const statusColors = {
+                                    confirmed: { bg: '#dcfce7', border: '#22c55e' },
+                                    pending: { bg: '#fef9c3', border: '#eab308' },
+                                    cancelled: { bg: '#fee2e2', border: '#ef4444' },
+                                };
+                                const sc = statusColors[ev.raw?.status] || statusColors.pending;
+                                return (
+                                    <div
+                                        key={i}
+                                        onClick={() => { setMonthDayPopup(null); setSelectedBooking(ev.raw); }}
+                                        style={{
+                                            padding: '12px 16px', borderRadius: 10,
+                                            background: sc.bg, borderLeft: `3px solid ${sc.border}`,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-800)' }}>{ev.raw?.start_time?.slice(0, 5)} – {ev.name}</div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--gray-600)' }}>{ev.service} • {Math.round(ev.dur * 60)} perc</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <button onClick={() => setMonthDayPopup(null)} className="btn btn-secondary btn-sm" style={{ width: '100%', marginTop: 16 }}>Bezárás</button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
