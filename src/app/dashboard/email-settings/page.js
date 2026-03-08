@@ -7,8 +7,8 @@ import s from '../dashboard.module.css';
 const EMAIL_TYPES = [
     { key: 'booking_confirmation', icon: '✅', label: 'Foglalás megerősítés', desc: 'Email az ügyfélnek, amikor lefoglal egy időpontot' },
     { key: 'provider_notification', icon: '🆕', label: 'Új foglalás értesítés', desc: 'Email neked, amikor valaki foglal nálad' },
-    { key: 'reminder_24h', icon: '⏰', label: '24 órás emlékeztető', desc: 'Emlékeztető az ügyfélnek 24 órával az időpont előtt' },
-    { key: 'reminder_1h', icon: '🔔', label: '1 órás emlékeztető', desc: 'Emlékeztető az ügyfélnek 1 órával az időpont előtt' },
+    { key: 'reminder_24h', icon: '⏰', label: 'Előtte való napi emlékeztető', desc: 'Emlékeztető az ügyfélnek az időpont előtti napon' },
+    { key: 'reminder_1h', icon: '🔔', label: '1 órával előtti emlékeztető', desc: 'Emlékeztető az ügyfélnek 1 órával az időpont előtt' },
 ];
 
 export default function EmailSettingsPage() {

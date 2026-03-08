@@ -163,7 +163,7 @@ function confirmationEmailHtml({ clientName, serviceName, date, time, duration, 
         <tr><td style="padding:8px 0;color:#6b7280;font-size:0.85rem;">🏢 Helyszín:</td><td style="padding:8px 0;font-weight:600;text-align:right;">${providerName}</td></tr>
       </table>
     </div>
-    <p style="color:#6b7280;font-size:0.8rem;text-align:center;margin:0;">Emlékeztetőt küldünk 24 órával és 1 órával az időpont előtt.</p>
+    <p style="color:#6b7280;font-size:0.8rem;text-align:center;margin:0;">Emlékeztetőt küldünk az időpont előtti napon és 1 órával az időpont előtt.</p>
   </div>
   <p style="text-align:center;color:#9ca3af;font-size:0.75rem;margin-top:16px;">FoglaljVelem.hu – Online időpontfoglalás</p>
 </div>

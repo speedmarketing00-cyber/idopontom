@@ -75,7 +75,7 @@ function teamRemovedEmailHtml({ memberName, ownerName, businessName }) {
     </div>
     <div style="background:#fffdf0;border-radius:12px;padding:20px;border:1px solid #fde68a;margin-bottom:24px;">
       <p style="margin:0;color:#374151;font-size:0.9rem;font-weight:600;">⭐ Szeretnéd megtartani a funkciókat?</p>
-      <p style="margin:8px 0 0;color:#374151;font-size:0.85rem;line-height:1.6;">Ha szeretnéd, hogy az ügyfeleid továbbra is kapjanak emlékeztetőt 24 órával és 1 órával az időpontjuk előtt, iratkozz fel az <strong>Alap csomagra</strong> – ez megakadályozza a lemondásokat és az elfelejtett időpontokat.</p>
+      <p style="margin:8px 0 0;color:#374151;font-size:0.85rem;line-height:1.6;">Ha szeretnéd, hogy az ügyfeleid továbbra is kapjanak emlékeztetőt az időpont előtti napon és 1 órával az időpont előtt, iratkozz fel az <strong>Alap csomagra</strong> – ez megakadályozza a lemondásokat és az elfelejtett időpontokat.</p>
     </div>
     <div style="text-align:center;">
       <a href="https://foglaljvelem.hu/dashboard/settings" style="display:inline-block;background:linear-gradient(135deg,#2563eb,#7c3aed);color:white;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:600;font-size:0.95rem;">⭐ Alap csomag előfizetése</a>

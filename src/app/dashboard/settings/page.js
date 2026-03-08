@@ -24,6 +24,10 @@ export default function SettingsPage() {
     const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
     const [uploading, setUploading] = useState(false);
     const fileRef = useRef(null);
+    const [feedbackOpen, setFeedbackOpen] = useState(false);
+    const [feedbackMsg, setFeedbackMsg] = useState('');
+    const [feedbackSending, setFeedbackSending] = useState(false);
+    const [feedbackSent, setFeedbackSent] = useState(false);
 
     // Sync form and avatar when profile loads (profile arrives async)
     useEffect(() => {
@@ -115,6 +119,31 @@ export default function SettingsPage() {
         } finally {
             setSubLoading('');
         }
+    };
+
+    const handleFeedbackSend = async () => {
+        if (!feedbackMsg.trim()) return;
+        setFeedbackSending(true);
+        try {
+            const res = await fetch('/api/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: feedbackMsg,
+                    senderEmail: user?.email || profile?.email || '',
+                    senderName: profile?.name || profile?.business_name || '',
+                }),
+            });
+            if (res.ok) {
+                setFeedbackSent(true);
+                setFeedbackMsg('');
+                setFeedbackOpen(false);
+                setTimeout(() => setFeedbackSent(false), 4000);
+            }
+        } catch (e) {
+            console.error('Feedback error:', e);
+        }
+        setFeedbackSending(false);
     };
 
     const handleManageSubscription = async () => {
@@ -263,6 +292,54 @@ export default function SettingsPage() {
                             </ul>
                             <button onClick={() => handleSubscribe('profi')} disabled={!!subLoading} className="btn btn-accent" style={{ width: '100%' }}>
                                 {subLoading === 'profi' ? 'Átirányítás...' : 'Váltás Profi csomagra →'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* FEEDBACK */}
+            <div className={s.contentCard} style={{ padding: 32, marginBottom: 24 }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 8 }}>💬 Visszajelzés</h3>
+                <p style={{ fontSize: '0.9rem', color: 'var(--gray-500)', marginBottom: 16, lineHeight: 1.6 }}>
+                    Bármi változtatási javaslatod van? Kérlek írj nekünk erre az email címre:{' '}
+                    <a href="mailto:speedmarketing00@gmail.com" style={{ color: 'var(--primary-600)', fontWeight: 600 }}>speedmarketing00@gmail.com</a>
+                </p>
+                {feedbackSent && (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '12px 16px', marginBottom: 12, color: '#166534', fontSize: '0.9rem', fontWeight: 500 }}>
+                        ✅ Üzeneted elküldtük, köszönjük a visszajelzést!
+                    </div>
+                )}
+                {!feedbackOpen ? (
+                    <button
+                        onClick={() => setFeedbackOpen(true)}
+                        className="btn btn-secondary btn-sm"
+                    >
+                        💬 Üzenetet küldök
+                    </button>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <textarea
+                            className="input"
+                            rows={4}
+                            placeholder="Írd le a javaslatodat vagy észrevételedet..."
+                            value={feedbackMsg}
+                            onChange={e => setFeedbackMsg(e.target.value)}
+                            style={{ resize: 'vertical' }}
+                        />
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button
+                                onClick={handleFeedbackSend}
+                                className="btn btn-primary btn-sm"
+                                disabled={feedbackSending || !feedbackMsg.trim()}
+                            >
+                                {feedbackSending ? '⏳ Küldés...' : '📨 Üzenet elküldése'}
+                            </button>
+                            <button
+                                onClick={() => { setFeedbackOpen(false); setFeedbackMsg(''); }}
+                                className="btn btn-secondary btn-sm"
+                            >
+                                Mégse
                             </button>
                         </div>
                     </div>
