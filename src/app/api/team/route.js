@@ -64,6 +64,23 @@ export async function POST(request) {
             return Response.json({ error: error.message }, { status: 500 });
         }
 
+        // Immediately upgrade the invitee's subscription if they already have an account
+        try {
+            const { data: existingProfile } = await supabaseAdmin
+                .from('profiles')
+                .select('user_id, subscription_tier')
+                .eq('email', email)
+                .maybeSingle();
+            if (existingProfile && existingProfile.subscription_tier === 'free') {
+                await supabaseAdmin
+                    .from('profiles')
+                    .update({ subscription_tier: 'basic' })
+                    .eq('user_id', existingProfile.user_id);
+            }
+        } catch (e) {
+            console.warn('Immediate invite upgrade failed:', e.message);
+        }
+
         // Send invite email (don't fail the whole request if email fails)
         if (resend && data) {
             try {

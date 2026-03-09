@@ -46,11 +46,14 @@ export function AuthProvider({ children }) {
 
         if (data) setProfile(data);
 
-        // Check if this user is also a team member of someone
-        // Uses /api/team/me (admin supabase) to bypass RLS on profiles join
+        // Check if this user is also a team member of someone.
+        // Passes userId so the server can auto-upgrade subscription_tier via admin Supabase
+        // (client-side writes to subscription_tier are blocked by RLS).
         if (userEmail) {
             try {
-                const res = await fetch(`/api/team/me?email=${encodeURIComponent(userEmail)}`);
+                const res = await fetch(
+                    `/api/team/me?email=${encodeURIComponent(userEmail)}&userId=${encodeURIComponent(userId)}`
+                );
                 const { teamRecord } = await res.json();
 
                 if (teamRecord?.profiles) {
@@ -62,16 +65,9 @@ export function AuthProvider({ children }) {
                         ownerProfile: teamRecord.profiles,
                         ownProfileId: data?.id, // team member's own profile ID for settings
                     });
-                    // Auto-upgrade team member's own subscription_tier to 'basic' while active
-                    if (data && data.subscription_tier === 'free') {
-                        supabase.from('profiles')
-                            .update({ subscription_tier: 'basic' })
-                            .eq('user_id', userId)
-                            .then(() => {})
-                            .catch(() => {});
-                    }
-                    // Use owner's profile so team member sees owner's calendar, bookings, services
-                    // _ownProfileId lets settings page save to the correct (team member's own) profile
+                    // Use owner's profile so team member sees owner's calendar, bookings, services.
+                    // _ownProfileId lets settings page save to the correct (team member's own) profile.
+                    // Subscription upgrade is handled server-side in /api/team/me.
                     setProfile({
                         ...teamRecord.profiles,
                         name: teamRecord.name,
