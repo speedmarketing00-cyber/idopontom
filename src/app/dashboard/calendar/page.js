@@ -98,7 +98,7 @@ export default function CalendarPage() {
     const { profile, teamMemberInfo } = useAuth();
     const effectiveProfileId = teamMemberInfo?.ownerProfileId || profile?.id;
     const [view, setView] = useState('week');
-    const [selectedDay, setSelectedDay] = useState(0);
+    const [selectedDay, setSelectedDay] = useState((new Date().getDay() + 6) % 7); // default to today
     const [events, setEvents] = useState([]);
     const [availability, setAvailability] = useState([]);
     const [selectedBooking, setSelectedBooking] = useState(null);
@@ -107,6 +107,13 @@ export default function CalendarPage() {
 
     const today = new Date();
     const weekNum = getWeekNumber(today);
+
+    // Default to day view on mobile
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.innerWidth < 768) {
+            setView('day');
+        }
+    }, []);
 
     useEffect(() => {
         if (isSupabaseConfigured && effectiveProfileId) {

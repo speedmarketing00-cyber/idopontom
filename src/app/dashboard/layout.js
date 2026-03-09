@@ -60,6 +60,10 @@ export default function DashboardLayout({ children }) {
     const tierLabel = { free: 'Ingyenes', basic: '⭐ Alap', pro: '🏢 Profi' };
     const tierClass = { free: s.tierFree, basic: s.tierBasic, pro: s.tierPro };
 
+    // Current page label for mobile header
+    const currentPage = navItems.find(item => !item.divider && pathname === item.href);
+    const currentPageLabel = currentPage ? `${currentPage.icon} ${currentPage.label}` : '📅 Dashboard';
+
     return (
         <div className={s.dashboard}>
             <div className={`${s.overlay} ${sidebarOpen ? s.show : ''}`} onClick={() => setSidebarOpen(false)} />
@@ -67,6 +71,7 @@ export default function DashboardLayout({ children }) {
                 <div className={s.sidebarHeader}>
                     <span className={s.sidebarLogo}>📅</span>
                     <span className={s.sidebarTitle}>Foglalj Velem</span>
+                    <button className={s.sidebarClose} onClick={() => setSidebarOpen(false)}>✕</button>
                 </div>
                 <nav className={s.sidebarNav}>
                     {navItems.map((item, i) => {
@@ -115,7 +120,11 @@ export default function DashboardLayout({ children }) {
                 </div>
             </aside>
             <main className={s.main}>
-                <button className={s.mobileToggle} onClick={() => setSidebarOpen(true)}>☰</button>
+                <div className={s.mobileHeader}>
+                    <button className={s.mobileToggle} onClick={() => setSidebarOpen(true)}>☰</button>
+                    <span className={s.mobileHeaderTitle}>{currentPageLabel}</span>
+                    <span style={{ fontSize: '1.3rem' }}>📅</span>
+                </div>
                 {children}
             </main>
         </div>

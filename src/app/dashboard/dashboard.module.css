@@ -198,12 +198,59 @@
 }
 
 .mobileToggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--primary-50);
+    border: 1.5px solid var(--primary-200);
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: var(--primary-700);
+    flex-shrink: 0;
+    padding: 0;
+}
+
+.mobileHeader {
     display: none;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: white;
+    border-bottom: 1px solid var(--gray-100);
+    padding: 10px 16px;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin: -12px -12px 16px -12px;
+}
+
+.mobileHeaderTitle {
+    flex: 1;
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--gray-800);
+}
+
+.sidebarClose {
+    display: none;
+    margin-left: auto;
     background: none;
     border: none;
-    font-size: 1.5rem;
+    font-size: 1.1rem;
     cursor: pointer;
-    padding: 8px;
+    color: var(--gray-400);
+    padding: 6px 8px;
+    border-radius: 8px;
+    line-height: 1;
+}
+
+.sidebarClose:hover {
+    background: var(--gray-100);
+    color: var(--gray-600);
 }
 
 .overlay {
@@ -435,9 +482,14 @@
     .main {
         margin-left: 0;
         padding: 12px;
+        padding-top: 0;
     }
 
-    .mobileToggle {
+    .mobileHeader {
+        display: flex;
+    }
+
+    .sidebarClose {
         display: block;
     }
 

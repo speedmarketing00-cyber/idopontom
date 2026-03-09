@@ -293,8 +293,16 @@
 }
 
 @media (max-width: 480px) {
+    .bookingPage {
+        padding: 20px 12px;
+    }
+
     .bookingCard {
-        padding: 20px;
+        padding: 16px;
+    }
+
+    .providerName {
+        font-size: 1.35rem;
     }
 
     .dateGrid {
@@ -302,7 +310,40 @@
         gap: 4px;
     }
 
+    .dateCell {
+        font-size: 0.78rem;
+    }
+
+    .dayLabel {
+        font-size: 0.65rem;
+        padding: 2px 0;
+    }
+
     .timeGrid {
         grid-template-columns: repeat(3, 1fr);
+    }
+
+    .timeSlot {
+        padding: 10px 6px;
+        font-size: 0.82rem;
+    }
+}
+
+@media (max-width: 360px) {
+    .dateCell {
+        font-size: 0.68rem;
+        border-radius: 6px;
+    }
+
+    .dayLabel {
+        font-size: 0.58rem;
+    }
+
+    .dateGrid {
+        gap: 2px;
+    }
+
+    .timeGrid {
+        grid-template-columns: repeat(2, 1fr);
     }
 }

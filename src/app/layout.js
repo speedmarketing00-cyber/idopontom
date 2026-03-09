@@ -2,6 +2,11 @@ import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import CookieBanner from "@/components/CookieBanner";
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export const metadata = {
   title: "FoglaljVelem – Online Időpontfoglaló Rendszer",
   description: "Egyszerű és gyors online időpontfoglaló rendszer szalonok, tanácsadók és edzők számára. Foglalj időpontot pillanatok alatt!",
