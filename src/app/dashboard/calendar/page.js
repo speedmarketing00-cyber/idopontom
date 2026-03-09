@@ -103,6 +103,7 @@ export default function CalendarPage() {
     const [availability, setAvailability] = useState([]);
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [monthDayPopup, setMonthDayPopup] = useState(null); // { dateStr, events }
+    const [daysOff, setDaysOff] = useState([]); // szabadnapok
 
     const today = new Date();
     const weekNum = getWeekNumber(today);
@@ -112,7 +113,9 @@ export default function CalendarPage() {
             Promise.all([
                 getBookings(effectiveProfileId),
                 supabase.from('availability').select('*').eq('profile_id', effectiveProfileId).eq('is_active', true),
-            ]).then(([bookingData, { data: availData }]) => {
+                supabase.from('days_off').select('*').eq('profile_id', effectiveProfileId).order('start_date'),
+            ]).then(([bookingData, { data: availData }, { data: offData }]) => {
+                setDaysOff(offData || []);
                 const filtered = teamMemberInfo
                     ? bookingData.filter(b => b.team_member_id === teamMemberInfo.teamMemberId)
                     : bookingData;
@@ -153,12 +156,18 @@ export default function CalendarPage() {
         halfHourSlots.push({ h, m: 30, decimal: h + 0.5, label: `${h}:30` });
     }
 
-    // Date string for week header (padded 2 digits)
-    const getDateStr = (offset) => {
+    // Date for week column (by day index 0=Monday)
+    const getWeekDate = (offset) => {
         const d = new Date(today);
         d.setDate(today.getDate() - ((today.getDay() + 6) % 7) + offset);
-        return fmtDate(d);
+        return d;
     };
+
+    // Date string for week header (padded 2 digits)
+    const getDateStr = (offset) => fmtDate(getWeekDate(offset));
+
+    // Full date string for matching days_off
+    const getWeekDateStr = (offset) => toDateStr(getWeekDate(offset));
 
     // Month grid for monthly view
     const getMonthGrid = () => {
@@ -189,6 +198,11 @@ export default function CalendarPage() {
             }
         }
         return days;
+    };
+
+    // Check if a date string (YYYY-MM-DD) falls within any day off
+    const getDayOff = (dateStr) => {
+        return daysOff.find(d => dateStr >= d.start_date && dateStr <= d.end_date);
     };
 
     const handleStatusChange = async (id, status) => {
@@ -248,19 +262,25 @@ export default function CalendarPage() {
                         <div style={{ padding: 12, borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-500)' }}>{weekNum}. hét</span>
                         </div>
-                        {weekDays.map((d, i) => (
-                            <div key={i} style={{ padding: 12, textAlign: 'center', borderBottom: '1px solid var(--gray-100)', borderLeft: '1px solid var(--gray-100)', background: i === ((today.getDay() + 6) % 7) ? 'var(--primary-50)' : 'var(--gray-50)' }}>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', fontWeight: 500 }}>{d}</div>
-                                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: i === ((today.getDay() + 6) % 7) ? 'var(--primary-600)' : 'var(--gray-800)' }}>{getDateStr(i)}</div>
-                            </div>
-                        ))}
+                        {weekDays.map((d, i) => {
+                            const dayOff = getDayOff(getWeekDateStr(i));
+                            const isToday = i === ((today.getDay() + 6) % 7);
+                            return (
+                                <div key={i} style={{ padding: 12, textAlign: 'center', borderBottom: '1px solid var(--gray-100)', borderLeft: '1px solid var(--gray-100)', background: dayOff ? '#fef2f2' : isToday ? 'var(--primary-50)' : 'var(--gray-50)' }}>
+                                    <div style={{ fontSize: '0.8rem', color: dayOff ? '#dc2626' : 'var(--gray-500)', fontWeight: 500 }}>{d}</div>
+                                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: dayOff ? '#dc2626' : isToday ? 'var(--primary-600)' : 'var(--gray-800)' }}>{getDateStr(i)}</div>
+                                    {dayOff && <div style={{ fontSize: '0.65rem', color: '#dc2626', fontWeight: 600, marginTop: 2 }}>🏖️ {dayOff.reason || 'Szabadnap'}</div>}
+                                </div>
+                            );
+                        })}
                         {hours.map(h => (
                             <div key={h} style={{ display: 'contents' }}>
                                 <div style={{ padding: '8px 12px', fontSize: '0.8rem', color: 'var(--gray-400)', textAlign: 'right', borderBottom: '1px solid var(--gray-50)', height: 64, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end' }}>
                                     {h}:00
                                 </div>
                                 {weekDays.map((_, di) => {
-                                    const dayEvents = events.filter(e => e.day === di && Math.floor(e.startH) === h);
+                                    const weekDate = getWeekDateStr(di);
+                                    const dayEvents = events.filter(e => e.raw?.booking_date === weekDate && Math.floor(e.startH) === h);
                                     return (
                                         <div key={di} style={{ borderLeft: '1px solid var(--gray-100)', borderBottom: '1px solid var(--gray-50)', padding: 2, height: 64, position: 'relative' }}>
                                             {dayEvents.map((ev, ei) => (
@@ -286,18 +306,35 @@ export default function CalendarPage() {
                 {/* ─── DAILY VIEW ─── */}
                 {view === 'day' && (
                     <div style={{ padding: 24 }}>
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-                            {weekDays.map((d, i) => (
-                                <button key={i} onClick={() => setSelectedDay(i)} className="btn btn-sm" style={{
-                                    background: selectedDay === i ? 'var(--primary-500)' : 'white', color: selectedDay === i ? 'white' : 'var(--gray-600)',
-                                    border: `1.5px solid ${selectedDay === i ? 'var(--primary-500)' : 'var(--gray-200)'}`, flex: 1,
-                                }}>{dayAbbr[i]}</button>
-                            ))}
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                            {weekDays.map((d, i) => {
+                                const dayDate = getWeekDateStr(i);
+                                const dayOff = getDayOff(dayDate);
+                                const isToday = dayDate === todayStr;
+                                return (
+                                    <button key={i} onClick={() => setSelectedDay(i)} className="btn btn-sm" style={{
+                                        background: dayOff ? '#fef2f2' : selectedDay === i ? 'var(--primary-500)' : 'white',
+                                        color: dayOff ? '#dc2626' : selectedDay === i ? 'white' : 'var(--gray-600)',
+                                        border: `1.5px solid ${dayOff ? '#fca5a5' : selectedDay === i ? 'var(--primary-500)' : 'var(--gray-200)'}`,
+                                        flex: 1, position: 'relative',
+                                    }}>
+                                        {dayAbbr[i]}
+                                        {isToday && <span style={{ fontSize: '0.55rem', position: 'absolute', bottom: 2, right: 4, color: selectedDay === i ? 'rgba(255,255,255,0.7)' : 'var(--primary-400)' }}>ma</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: 20 }}>
+                            {weekDays[selectedDay]} – {getWeekDateStr(selectedDay).replace(/-/g, '.')}
+                            {getDayOff(getWeekDateStr(selectedDay)) && (
+                                <span style={{ marginLeft: 8, color: '#dc2626', fontWeight: 600 }}>🏖️ {getDayOff(getWeekDateStr(selectedDay)).reason || 'Szabadnap'}</span>
+                            )}
                         </div>
                         {halfHourSlots.map((slot, idx) => {
                             const isHalfHour = slot.m === 30;
+                            const selectedDayDateStr = getWeekDateStr(selectedDay);
                             const dayEvents = events.filter(e =>
-                                e.day === selectedDay &&
+                                e.raw?.booking_date === selectedDayDateStr &&
                                 e.startH >= slot.decimal &&
                                 e.startH < slot.decimal + 0.5
                             );
@@ -354,6 +391,7 @@ export default function CalendarPage() {
                                         {week.map((day, di) => {
                                             const dayEvts = events.filter(ev => ev.raw?.booking_date === day.dateStr);
                                             const isToday = day.dateStr === todayStr;
+                                            const dayOff = getDayOff(day.dateStr);
                                             const hasEvents = dayEvts.length > 0;
                                             return (
                                                 <div
@@ -368,22 +406,27 @@ export default function CalendarPage() {
                                                         borderBottom: '1px solid var(--gray-50)',
                                                         padding: 8,
                                                         minHeight: 80,
-                                                        background: isToday ? 'var(--primary-50)' : 'white',
+                                                        background: dayOff ? '#fef2f2' : isToday ? 'var(--primary-50)' : 'white',
                                                         opacity: day.isCurrentMonth ? 1 : 0.35,
                                                         cursor: hasEvents ? 'pointer' : 'default',
                                                         transition: 'background 0.15s',
                                                     }}
-                                                    onMouseEnter={e => { if (hasEvents) e.currentTarget.style.background = 'var(--primary-50)'; }}
-                                                    onMouseLeave={e => { if (!isToday) e.currentTarget.style.background = 'white'; }}
+                                                    onMouseEnter={e => { if (hasEvents && !dayOff) e.currentTarget.style.background = 'var(--primary-50)'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.background = dayOff ? '#fef2f2' : isToday ? 'var(--primary-50)' : 'white'; }}
                                                 >
                                                     <div style={{
                                                         fontWeight: isToday ? 800 : 600,
                                                         fontSize: '0.85rem',
-                                                        color: isToday ? 'var(--primary-600)' : 'var(--gray-700)',
+                                                        color: dayOff ? '#dc2626' : isToday ? 'var(--primary-600)' : 'var(--gray-700)',
                                                         marginBottom: 4,
                                                     }}>
                                                         {pad2(day.dayNum)}
                                                     </div>
+                                                    {dayOff && (
+                                                        <div style={{ fontSize: '0.6rem', padding: '2px 6px', marginBottom: 2, borderRadius: 4, background: '#fee2e2', color: '#dc2626', fontWeight: 600 }}>
+                                                            🏖️ {dayOff.reason || 'Szabadnap'}
+                                                        </div>
+                                                    )}
                                                     {/* Event indicators */}
                                                     {dayEvts.slice(0, 3).map((ev, ei) => (
                                                         <div key={ei} style={{

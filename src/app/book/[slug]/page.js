@@ -80,6 +80,7 @@ export default function BookingPage({ params }) {
     const [form, setForm] = useState({ name: '', email: '', phone: '', notes: '' });
     const [booked, setBooked] = useState(false);
     const [bookingLoading, setBookingLoading] = useState(false);
+    const [bookingError, setBookingError] = useState(null);
 
     // Step mapping: with team → 1=member, 2=service, 3=date, 4=form; without team → 1=service, 2=date, 3=form
     const STEP_MEMBER = hasTeam ? 1 : -1;
@@ -211,8 +212,16 @@ export default function BookingPage({ params }) {
         // Build booked time ranges (start + end in minutes) for proper overlap detection
         const dayBookings = filteredBookedSlots.filter(b => b.booking_date === dateStr).map(b => {
             const [bsh, bsm] = (b.start_time || '00:00').slice(0, 5).split(':').map(Number);
-            const [beh, bem] = (b.end_time || b.start_time || '00:30').slice(0, 5).split(':').map(Number);
-            return { start: bsh * 60 + bsm, end: beh * 60 + bem };
+            const startMins = bsh * 60 + bsm;
+            let endMins;
+            if (b.end_time) {
+                const [beh, bem] = b.end_time.slice(0, 5).split(':').map(Number);
+                endMins = beh * 60 + bem;
+            } else {
+                // Fallback: if end_time is missing, assume at least 30 min duration
+                endMins = startMins + 30;
+            }
+            return { start: startMins, end: endMins };
         });
 
         // Check if this is today
@@ -238,12 +247,24 @@ export default function BookingPage({ params }) {
         ? (provider?.name || provider?.business_name)
         : teamMembers.find(m => m.id === selectedMember)?.name;
 
+    // Reload booked slots from database
+    const refreshBookedSlots = async () => {
+        if (!isSupabaseConfigured || !supabase || !provider) return;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const futureStr = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
+        const { data: bookings } = await supabase.from('bookings').select('booking_date, start_time, end_time, team_member_id')
+            .eq('profile_id', provider.id).eq('status', 'confirmed')
+            .gte('booking_date', todayStr).lte('booking_date', futureStr);
+        setBookedSlots(bookings || []);
+    };
+
     const handleBook = async () => {
         if (!form.name || !form.email || !form.phone) return;
         setBookingLoading(true);
+        setBookingError(null);
         try {
             const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(selectedDate).padStart(2, '0')}`;
-            await fetch('/api/booking', {
+            const res = await fetch('/api/booking', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -261,14 +282,41 @@ export default function BookingPage({ params }) {
                     teamMemberId: (hasTeam && selectedMember !== 'owner') ? selectedMember : null,
                 }),
             });
+
+            if (res.status === 409) {
+                // Time slot already taken - refresh slots and go back to time selection
+                setBookingError('Ez az időpont sajnos már foglalt! Kérlek válassz másik időpontot.');
+                setSelectedTime(null);
+                setStep(STEP_DATE);
+                await refreshBookedSlots();
+                return;
+            }
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                setBookingError(errData.error || 'Hiba történt a foglalás során. Kérlek próbáld újra.');
+                return;
+            }
+
             setBooked(true);
+            // Update booked slots locally so the slot disappears immediately
+            setBookedSlots(prev => [...prev, {
+                booking_date: dateStr,
+                start_time: selectedTime,
+                end_time: (() => {
+                    const [th, tm] = selectedTime.split(':').map(Number);
+                    const endMin = th * 60 + tm + (svc?.duration_minutes || 30);
+                    return `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+                })(),
+                team_member_id: (hasTeam && selectedMember !== 'owner') ? selectedMember : null,
+            }]);
             // Fire Meta Pixel Lead event
             if (typeof window !== 'undefined' && window.fbq) {
                 window.fbq('track', 'Lead', { content_name: svc?.name, value: svc?.price, currency: 'HUF' });
             }
         } catch (err) {
             console.error('Booking error:', err);
-            setBooked(true);
+            setBookingError('Hálózati hiba történt. Kérlek próbáld újra.');
         } finally {
             setBookingLoading(false);
         }
@@ -443,6 +491,11 @@ export default function BookingPage({ params }) {
                             <>
                                 <button className={s.backLink} onClick={() => setStep(STEP_SERVICE)}>← Vissza</button>
                                 <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 16 }}>Válassz dátumot és időpontot</h3>
+                                {bookingError && (
+                                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: '12px 16px', marginBottom: 16, color: '#991b1b', fontSize: '0.9rem', fontWeight: 500 }}>
+                                        ⚠️ {bookingError}
+                                    </div>
+                                )}
                                 {hasTeam && selectedMemberName && (
                                     <div style={{ background: 'var(--primary-50)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: '0.85rem', color: 'var(--gray-600)' }}>
                                         👤 <strong>{selectedMemberName}</strong> • {svc?.name}
@@ -477,7 +530,7 @@ export default function BookingPage({ params }) {
                                             <div className={s.timeGrid}>
                                                 {availableTimesForDay.map(t => (
                                                     <button key={t} className={`${s.timeSlot} ${selectedTime === t ? s.selected : ''}`}
-                                                        onClick={() => setSelectedTime(t)}>
+                                                        onClick={() => { setSelectedTime(t); setBookingError(null); }}>
                                                         {t}
                                                     </button>
                                                 ))}
@@ -530,6 +583,11 @@ export default function BookingPage({ params }) {
                                             value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
                                     </div>
                                 </div>
+                                {bookingError && (
+                                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: '12px 16px', marginTop: 16, color: '#991b1b', fontSize: '0.9rem', fontWeight: 500 }}>
+                                        ⚠️ {bookingError}
+                                    </div>
+                                )}
                                 <button onClick={handleBook} className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 20 }}
                                     disabled={!form.name || !form.email || !form.phone || bookingLoading}>
                                     {bookingLoading ? '⏳ Foglalás folyamatban...' : '📅 Foglalás megerősítése'}
