@@ -14,7 +14,7 @@ const navItems = [
     { divider: true },
     { icon: '⭐', label: 'Értékelések', href: '/dashboard/reviews', tier: 'basic' },
     { icon: '📊', label: 'Statisztikák', href: '/dashboard/statistics', tier: 'basic' },
-    { icon: '👥', label: 'Csapat', href: '/dashboard/team', tier: 'pro' },
+    { icon: '👥', label: 'Csapat', href: '/dashboard/team', tier: 'pro', ownerOnly: true },
     { divider: true },
     { icon: '📧', label: 'Email beállítások', href: '/dashboard/email-settings', tier: 'basic' },
     { icon: '📊', label: 'Meta Pixel', href: '/dashboard/meta-pixel', tier: 'free' },
@@ -53,7 +53,8 @@ export default function DashboardLayout({ children }) {
         return null;
     }
 
-    const displayName = profile?.business_name || profile?.businessName || profile?.name || user?.email?.split('@')[0] || 'Felhasználó';
+    const isTeamMember = !!profile?._isTeamMemberOnly;
+    const displayName = profile?.name || profile?.business_name || profile?.businessName || user?.email?.split('@')[0] || 'Felhasználó';
     const displayEmail = user?.email || profile?.email || '';
     const tier = profile?.subscription_tier || profile?.tier || 'free';
     const tierLabel = { free: 'Ingyenes', basic: '⭐ Alap', pro: '🏢 Profi' };
@@ -70,7 +71,11 @@ export default function DashboardLayout({ children }) {
                 <nav className={s.sidebarNav}>
                     {navItems.map((item, i) => {
                         if (item.divider) return <div key={i} className={s.navDivider} />;
-                        const userLevel = TIER_LEVEL[tier] || 0;
+                        // Hide owner-only items for team members
+                        if (item.ownerOnly && isTeamMember) return null;
+                        // For team members, treat their effective tier as 'basic' for lock checks
+                        const effectiveTier = isTeamMember ? 'basic' : tier;
+                        const userLevel = TIER_LEVEL[effectiveTier] || 0;
                         const requiredLevel = TIER_LEVEL[item.tier] || 0;
                         const locked = userLevel < requiredLevel;
                         return (
@@ -92,9 +97,13 @@ export default function DashboardLayout({ children }) {
                         <div>
                             <div className={s.userName}>{displayName}</div>
                             <div className={s.userEmail}>{displayEmail}</div>
-                            <span className={`${s.tierBadge} ${tierClass[tier] || s.tierFree}`}>
-                                {tierLabel[tier] || 'Ingyenes'}
-                            </span>
+                            {isTeamMember ? (
+                                <span className={`${s.tierBadge} ${s.tierBasic}`}>👥 Csapattag</span>
+                            ) : (
+                                <span className={`${s.tierBadge} ${tierClass[tier] || s.tierFree}`}>
+                                    {tierLabel[tier] || 'Ingyenes'}
+                                </span>
+                            )}
                         </div>
                     </div>
                     <button onClick={handleLogout} className={s.navItem} style={{

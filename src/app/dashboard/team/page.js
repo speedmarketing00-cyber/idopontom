@@ -5,8 +5,10 @@ import Link from 'next/link';
 import s from '../dashboard.module.css';
 
 export default function TeamPage() {
-    const { profile } = useAuth();
-    const tier = profile?.subscription_tier || 'free';
+    const { profile, teamMemberInfo } = useAuth();
+    const isTeamMember = !!profile?._isTeamMemberOnly;
+    // For pro check: team members have owner's profile (tier=pro) but mustn't manage the team
+    const tier = isTeamMember ? 'basic' : (profile?.subscription_tier || 'free');
     const isProfi = tier === 'pro';
 
     const [members, setMembers] = useState([]);
@@ -82,6 +84,47 @@ export default function TeamPage() {
             console.error('Remove error:', e);
         }
     };
+
+    // Team members see a read-only "you belong to this team" view
+    if (isTeamMember) {
+        const ownerBusiness = teamMemberInfo?.ownerProfile?.business_name || teamMemberInfo?.ownerProfile?.name || 'Ismeretlen';
+        const ownerName = teamMemberInfo?.ownerProfile?.name || '';
+        return (
+            <div>
+                <div className={s.topBar}>
+                    <div className={s.topBarLeft}>
+                        <h1>Csapat 👥</h1>
+                        <p>Csapattagság</p>
+                    </div>
+                </div>
+                <div className={s.contentCard} style={{ padding: 48, textAlign: 'center' }}>
+                    <div style={{ fontSize: '3.5rem', marginBottom: 20 }}>👥</div>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 12, fontSize: '1.5rem' }}>
+                        Te egy csapat tagja vagy
+                    </h2>
+                    <p style={{ color: 'var(--gray-600)', marginBottom: 8, maxWidth: 440, margin: '0 auto 12px', lineHeight: 1.7 }}>
+                        Jelenleg a <strong>{ownerBusiness}</strong>{ownerName ? ` (${ownerName})` : ''} csapatában dolgozol.
+                    </p>
+                    <p style={{ color: 'var(--gray-400)', fontSize: '0.85rem', maxWidth: 420, margin: '0 auto 28px' }}>
+                        Csapattagként automatikusan megkaptad az <strong>⭐ Alap csomag</strong> összes funkcióját ingyenesen – amíg a csapatban maradsz.
+                    </p>
+                    <div style={{
+                        background: 'linear-gradient(135deg, var(--primary-50), var(--accent-50))',
+                        borderRadius: 16, padding: 20, maxWidth: 360, margin: '0 auto',
+                        border: '1.5px solid var(--primary-100)', textAlign: 'left'
+                    }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 10, color: 'var(--gray-800)' }}>⭐ Aktív csomag: Alap</div>
+                        <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.85rem', color: 'var(--gray-600)', lineHeight: 1.9 }}>
+                            <li>✅ E-mail értesítések & emlékeztetők</li>
+                            <li>✅ Statisztikák</li>
+                            <li>✅ Értékelések</li>
+                            <li>✅ Email beállítások</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // Free and Alap users see upgrade message
     if (!isProfi) {
