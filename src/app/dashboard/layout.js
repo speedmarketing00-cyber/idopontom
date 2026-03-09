@@ -97,7 +97,10 @@ export default function DashboardLayout({ children }) {
                             </span>
                         </div>
                     </div>
-                    <button onClick={handleLogout} className={s.navItem} style={{ marginTop: 8, color: 'var(--error)' }}>
+                    <button onClick={handleLogout} className={s.navItem} style={{
+                        marginTop: 8, color: '#dc2626',
+                        border: '1px solid #fecaca', background: '#fef2f2',
+                    }}>
                         <span className={s.navIcon}>🚪</span> Kijelentkezés
                     </button>
                 </div>

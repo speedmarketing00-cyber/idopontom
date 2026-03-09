@@ -45,6 +45,16 @@ export async function POST(request) {
                         stripe_customer_id: session.customer,
                         stripe_subscription_id: session.subscription,
                     }).eq('id', profileId);
+
+                    // Also store planName on the Stripe subscription metadata
+                    // so customer.subscription.updated can read it on renewals
+                    if (stripe && session.subscription && planName) {
+                        try {
+                            await stripe.subscriptions.update(session.subscription, {
+                                metadata: { profileId, planName },
+                            });
+                        } catch (e) { console.warn('Subscription metadata update failed:', e.message); }
+                    }
                 }
                 break;
             }
@@ -52,13 +62,23 @@ export async function POST(request) {
             case 'customer.subscription.updated': {
                 const subscription = event.data.object;
                 if (supabaseAdmin) {
-                    const isActive = subscription.status === 'active';
+                    const isActive = ['active', 'trialing'].includes(subscription.status);
+                    // planName is stored on subscription metadata (set during checkout.session.completed)
                     const planName = subscription.metadata?.planName;
-                    const tier = isActive ? (PLAN_TO_TIER[planName] || 'basic') : 'free';
 
-                    await supabaseAdmin.from('profiles')
-                        .update({ subscription_tier: tier })
-                        .eq('stripe_subscription_id', subscription.id);
+                    if (isActive && planName) {
+                        // Active subscription with known plan - set correct tier
+                        const tier = PLAN_TO_TIER[planName] || 'basic';
+                        await supabaseAdmin.from('profiles')
+                            .update({ subscription_tier: tier })
+                            .eq('stripe_subscription_id', subscription.id);
+                    } else if (!isActive) {
+                        // Subscription went inactive (past_due, paused, etc.) - downgrade to free
+                        await supabaseAdmin.from('profiles')
+                            .update({ subscription_tier: 'free' })
+                            .eq('stripe_subscription_id', subscription.id);
+                    }
+                    // If active but no planName metadata, do nothing (avoid accidental downgrades)
                 }
                 break;
             }
