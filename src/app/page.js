@@ -136,7 +136,7 @@ export default function Home() {
         <div className={s.sectionHeader}>
           <span className={s.sectionBadge}>💰 Árazás</span>
           <h2 className={s.sectionTitle}>Egyszerű, átlátható árak</h2>
-          <p className={s.sectionDesc}>Kezdd ingyen, frissíts amikor szükséged van rá. Nincs rejtett költség.</p>
+          <p className={s.sectionDesc}>Kezdd ingyen, frissíts amikor szükséged van rá. Nincs rejtett költség.<br/><strong style={{ color: 'var(--success)', fontWeight: 700 }}>✓ A fizetős csomagok 14 napig ingyenesek – kártya szükséges, de az első 14 napban nem vonódik le semmi.</strong></p>
         </div>
         <div className={s.pricingGrid}>
           <div className={s.pricingCard}>
@@ -159,6 +159,7 @@ export default function Home() {
             <span className={s.popularBadge}>⭐ Legnépszerűbb</span>
             <h3>⭐ Alap</h3>
             <div className={s.pricingPrice}><span className={s.priceAmount}>4 997 Ft</span><span className={s.pricePeriod}>/hó</span></div>
+            <div style={{ display: 'inline-block', background: '#dcfce7', color: '#166534', fontSize: '0.8rem', fontWeight: 700, padding: '4px 12px', borderRadius: 999, marginBottom: 8 }}>🎁 14 nap ingyen – kártya nem vonódik le</div>
             <p className={s.pricingDesc}>Minden funkció, 1 felhasználónak</p>
             <ul className={s.pricingFeatures}>
               <li><span className={s.checkIcon}>✓</span> Minden ingyenes funkció</li>
@@ -171,12 +172,13 @@ export default function Home() {
               <li><span className={s.checkIcon}>✓</span> Részletes statisztikák</li>
               <li><span className={s.crossIcon}>✗</span> Csapatkezelés (1 fő)</li>
             </ul>
-            <Link href="/auth/register" className={`btn btn-primary btn-lg ${s.pricingBtn}`}>Próbáld ki ingyen →</Link>
+            <Link href="/auth/register" className={`btn btn-primary btn-lg ${s.pricingBtn}`}>14 nap ingyen kipróbálom →</Link>
           </div>
 
           <div className={s.pricingCard}>
             <h3>🏢 Profi</h3>
             <div className={s.pricingPrice}><span className={s.priceAmount}>19 997 Ft</span><span className={s.pricePeriod}>/hó</span></div>
+            <div style={{ display: 'inline-block', background: '#dcfce7', color: '#166534', fontSize: '0.8rem', fontWeight: 700, padding: '4px 12px', borderRadius: 999, marginBottom: 8 }}>🎁 14 nap ingyen – kártya nem vonódik le</div>
             <p className={s.pricingDesc}>Csapatok számára, 6-10 alfiókok</p>
             <ul className={s.pricingFeatures}>
               <li><span className={s.checkIcon}>✓</span> Minden Alap funkció</li>
@@ -185,7 +187,7 @@ export default function Home() {
               <li><span className={s.checkIcon}>✓</span> Jogosultság kezelés</li>
               <li><span className={s.checkIcon}>✓</span> Prioritásos támogatás</li>
             </ul>
-            <Link href="/auth/register" className={`btn btn-accent btn-lg ${s.pricingBtn}`}>Csatlakozz →</Link>
+            <Link href="/auth/register" className={`btn btn-accent btn-lg ${s.pricingBtn}`}>14 nap ingyen kipróbálom →</Link>
           </div>
         </div>
       </section>
