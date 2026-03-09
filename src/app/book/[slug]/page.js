@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import s from '../book.module.css';
 
@@ -78,6 +79,7 @@ export default function BookingPage({ params }) {
     const [selectedDate, setSelectedDate] = useState(null);
     const [selectedTime, setSelectedTime] = useState(null);
     const [form, setForm] = useState({ name: '', email: '', phone: '', notes: '' });
+    const router = useRouter();
     const [booked, setBooked] = useState(false);
     const [bookingLoading, setBookingLoading] = useState(false);
     const [bookingError, setBookingError] = useState(null);
@@ -298,22 +300,21 @@ export default function BookingPage({ params }) {
                 return;
             }
 
-            setBooked(true);
-            // Update booked slots locally so the slot disappears immediately
-            setBookedSlots(prev => [...prev, {
-                booking_date: dateStr,
-                start_time: selectedTime,
-                end_time: (() => {
-                    const [th, tm] = selectedTime.split(':').map(Number);
-                    const endMin = th * 60 + tm + (svc?.duration_minutes || 30);
-                    return `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
-                })(),
-                team_member_id: (hasTeam && selectedMember !== 'owner') ? selectedMember : null,
-            }]);
-            // Fire Meta Pixel Lead event
-            if (typeof window !== 'undefined' && window.fbq) {
-                window.fbq('track', 'Lead', { content_name: svc?.name, value: svc?.price, currency: 'HUF' });
-            }
+            // Redirect to thank you page (fires Meta Pixel Lead event there)
+            const params = new URLSearchParams({
+                service:  svc?.name || '',
+                date:     dateStr,
+                time:     selectedTime || '',
+                duration: String(svc?.duration_minutes || 30),
+                price:    String(svc?.price || 0),
+                name:     form.name,
+                provider: provider?.business_name || provider?.name || '',
+                avatar:   provider?.avatar_url || '',
+                type:     provider?.business_type || '',
+                pixel:    provider?.meta_pixel_id || '',
+            });
+            router.push(`/book/${slug}/koszonjuk?${params.toString()}`);
+            return; // don't set booked state, we're redirecting
         } catch (err) {
             console.error('Booking error:', err);
             setBookingError('Hálózati hiba történt. Kérlek próbáld újra.');

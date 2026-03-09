@@ -54,6 +54,32 @@ export default function SettingsPage() {
         if (sub) setTimeout(() => setSubMsg(''), 5000);
     }, [searchParams]);
 
+    // Auto-start Stripe checkout if redirected from registration with a plan
+    useEffect(() => {
+        const startPlan = searchParams.get('startPlan');
+        if (startPlan && profile?.id && (startPlan === 'alap' || startPlan === 'profi')) {
+            // Small delay to ensure profile is loaded
+            const timer = setTimeout(async () => {
+                try {
+                    const res = await fetch('/api/stripe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'create-checkout',
+                            planName: startPlan,
+                            profileId: profile.id,
+                            email: user?.email,
+                            customerId: profile.stripe_customer_id || null,
+                        }),
+                    });
+                    const data = await res.json();
+                    if (data.url) window.location.href = data.url;
+                } catch (e) { console.error('Auto-checkout error:', e); }
+            }, 1200);
+            return () => clearTimeout(timer);
+        }
+    }, [searchParams, profile?.id]);
+
     const handleSave = async () => {
         try {
             await updateProfile({ ...form, avatar_url: avatarUrl || null });

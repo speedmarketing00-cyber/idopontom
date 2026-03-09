@@ -5,8 +5,41 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import s from '../auth.module.css';
 
+const PLANS = [
+    {
+        id: 'free',
+        name: 'Ingyenes',
+        emoji: '🆓',
+        price: '0 Ft/hó',
+        desc: 'Alap foglalási rendszer, korlátozott funkciókkal.',
+        features: ['Foglalási oldal', 'Naptárkezelés', 'E-mail értesítők nélkül'],
+        highlight: false,
+    },
+    {
+        id: 'alap',
+        name: 'Alap',
+        emoji: '⭐',
+        price: '4 997 Ft/hó',
+        trial: '14 nap ingyen',
+        desc: 'Egyéni szolgáltatóknak – teljes körű funkciókkal.',
+        features: ['E-mail értesítők & emlékeztetők', 'Statisztikák', 'Email beállítások', '14 nap próbaidőszak'],
+        highlight: true,
+    },
+    {
+        id: 'profi',
+        name: 'Profi',
+        emoji: '🏢',
+        price: '19 997 Ft/hó',
+        trial: '14 nap ingyen',
+        desc: 'Csapatoknak – több dolgozó, prioritásos támogatás.',
+        features: ['Minden Alap funkció', 'Csapatkezelés (6-10 fő)', 'Prioritásos támogatás', '14 nap próbaidőszak'],
+        highlight: false,
+    },
+];
+
 export default function RegisterPage() {
     const [form, setForm] = useState({ name: '', email: '', password: '', businessName: '', businessType: 'salon' });
+    const [selectedPlan, setSelectedPlan] = useState('free');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { signUp, signInWithGoogle } = useAuth();
@@ -17,7 +50,7 @@ export default function RegisterPage() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        if (!form.name || !form.email || !form.password) { setError('Kérlek töltsd ki az összes mezőt!'); return; }
+        if (!form.name || !form.email || !form.password) { setError('Kérlek töltsd ki az összes kötelező mezőt!'); return; }
         if (form.password.length < 6) { setError('A jelszónak legalább 6 karakter hosszúnak kell lennie!'); return; }
         setLoading(true);
         try {
@@ -26,7 +59,14 @@ export default function RegisterPage() {
                 business_name: form.businessName || form.name,
                 business_type: form.businessType,
             });
-            router.push('/dashboard');
+
+            if (selectedPlan !== 'free') {
+                // Redirect to Stripe checkout for paid plan (with 14-day trial)
+                // We need profileId — it's created in signUp, so redirect to a special page
+                router.push(`/dashboard/settings?startPlan=${selectedPlan}`);
+            } else {
+                router.push('/dashboard');
+            }
         } catch (err) {
             setError(err.message || 'Hiba történt a regisztráció során.');
         } finally {
@@ -40,21 +80,68 @@ export default function RegisterPage() {
         catch (err) { setError(err.message || 'Google regisztráció sikertelen.'); }
     };
 
-
     return (
         <div className={s.authPage}>
             <div className={s.authBg}>
                 <div className={s.authBlob1}></div>
                 <div className={s.authBlob2}></div>
             </div>
-            <div className={`${s.authCard} animate-scale-in`}>
+            <div className={`${s.authCard} animate-scale-in`} style={{ maxWidth: 680 }}>
                 <Link href="/" className={s.authLogo}>
                     <span className={s.authLogoIcon}>📅</span>
                     <span className={s.authLogoText}>Foglalj Velem</span>
                 </Link>
                 <h1 className={s.authTitle}>Hozd létre fiókodat! 🚀</h1>
-                <p className={s.authSubtitle}>Indulj el az ingyenes csomaggal</p>
+                <p className={s.authSubtitle}>Válassz csomagot – a fizetős csomagok 14 napig ingyenesek</p>
                 {error && <div className={s.errorMsg}>{error}</div>}
+
+                {/* Plan selector */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
+                    {PLANS.map(plan => (
+                        <div
+                            key={plan.id}
+                            onClick={() => setSelectedPlan(plan.id)}
+                            style={{
+                                border: `2px solid ${selectedPlan === plan.id ? 'var(--primary-500)' : 'var(--gray-200)'}`,
+                                borderRadius: 14,
+                                padding: '14px 12px',
+                                cursor: 'pointer',
+                                background: selectedPlan === plan.id ? 'var(--primary-50)' : plan.highlight ? 'var(--gray-50)' : 'white',
+                                transition: 'all 0.2s',
+                                position: 'relative',
+                                textAlign: 'center',
+                            }}
+                        >
+                            {plan.highlight && (
+                                <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', background: 'var(--primary-500)', color: 'white', fontSize: '0.65rem', fontWeight: 700, padding: '2px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+                                    LEGNÉPSZERŰBB
+                                </div>
+                            )}
+                            {plan.trial && (
+                                <div style={{ background: '#dcfce7', color: '#166534', fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: 999, marginBottom: 6, display: 'inline-block' }}>
+                                    ✓ {plan.trial}
+                                </div>
+                            )}
+                            <div style={{ fontSize: '1.4rem', marginBottom: 4 }}>{plan.emoji}</div>
+                            <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 2 }}>{plan.name}</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--primary-600)', fontWeight: 600, marginBottom: 8 }}>{plan.price}</div>
+                            <ul style={{ textAlign: 'left', paddingLeft: 14, fontSize: '0.72rem', color: 'var(--gray-500)', listStyle: 'none' }}>
+                                {plan.features.map(f => (
+                                    <li key={f} style={{ marginBottom: 2 }}>✓ {f}</li>
+                                ))}
+                            </ul>
+                            {selectedPlan === plan.id && (
+                                <div style={{ marginTop: 8, width: 20, height: 20, borderRadius: '50%', background: 'var(--primary-500)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '8px auto 0', color: 'white', fontSize: '0.8rem' }}>✓</div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                {selectedPlan !== 'free' && (
+                    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: '0.82rem', color: '#92400e' }}>
+                        💳 A <strong>{PLANS.find(p => p.id === selectedPlan)?.name}</strong> csomagnál kártyaadatot kell megadni, de az első 14 napban <strong>nem vonódik le semmi</strong>. Bármikor lemondható.
+                    </div>
+                )}
 
                 <div className={s.authSocial}>
                     <button onClick={handleGoogleLogin} className={s.authSocialBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%' }}>
@@ -68,16 +155,16 @@ export default function RegisterPage() {
                 <form onSubmit={handleSubmit} className={s.authForm}>
                     <div className={s.authRow}>
                         <div className="input-group">
-                            <label className="input-label">Teljes neved</label>
+                            <label className="input-label">Teljes neved *</label>
                             <input type="text" className="input" placeholder="Kiss Anna" value={form.name} onChange={handleChange('name')} required />
                         </div>
                         <div className="input-group">
-                            <label className="input-label">E-mail cím</label>
+                            <label className="input-label">E-mail cím *</label>
                             <input type="email" className="input" placeholder="pelda@email.hu" value={form.email} onChange={handleChange('email')} required />
                         </div>
                     </div>
                     <div className="input-group">
-                        <label className="input-label">Vállalkozás neve <span style={{color:'var(--gray-400)',fontWeight:400,fontSize:'0.8rem'}}>(csapattagként üresen hagyható)</span></label>
+                        <label className="input-label">Vállalkozás neve <span style={{ color: 'var(--gray-400)', fontWeight: 400, fontSize: '0.8rem' }}>(opcionális)</span></label>
                         <input type="text" className="input" placeholder="Szépség Szalon Kati" value={form.businessName} onChange={handleChange('businessName')} />
                     </div>
                     <div className="input-group">
@@ -92,12 +179,15 @@ export default function RegisterPage() {
                         </select>
                     </div>
                     <div className="input-group">
-                        <label className="input-label">Jelszó</label>
+                        <label className="input-label">Jelszó *</label>
                         <input type="password" className="input" placeholder="Min. 6 karakter" value={form.password} onChange={handleChange('password')} required />
                     </div>
                     <button type="submit" className={`btn btn-primary ${s.authSubmitBtn}`} disabled={loading}>
-                        {loading ? 'Fiók létrehozása...' : 'Ingyenes regisztráció →'}
+                        {loading ? 'Fiók létrehozása...' : selectedPlan === 'free' ? 'Ingyenes regisztráció →' : `Regisztráció és 14 napos trial →`}
                     </button>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--gray-400)', textAlign: 'center', marginTop: 8 }}>
+                        A regisztrációval elfogadod az <Link href="/aszf" style={{ color: 'var(--primary-500)' }}>ÁSZF</Link>-et és az <Link href="/adatvedelem" style={{ color: 'var(--primary-500)' }}>Adatvédelmi tájékoztatót</Link>.
+                    </p>
                 </form>
                 <p className={s.authFooter}>Már van fiókod? <Link href="/auth/login">Bejelentkezés</Link></p>
             </div>

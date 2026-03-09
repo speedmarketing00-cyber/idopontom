@@ -86,6 +86,11 @@ export async function POST(request) {
                 success_url: `${request.headers.get('origin')}/dashboard/settings?subscription=success`,
                 cancel_url: `${request.headers.get('origin')}/dashboard/settings?subscription=cancelled`,
                 metadata: { profileId, planName },
+                // 14-day free trial — card required upfront, billing starts after trial
+                subscription_data: {
+                    trial_period_days: 14,
+                    metadata: { profileId, planName },
+                },
             };
 
             if (customerId) {
