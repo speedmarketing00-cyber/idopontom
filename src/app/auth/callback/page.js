@@ -48,6 +48,27 @@ export default function AuthCallbackPage() {
                     .eq('is_active', true)
                     .maybeSingle();
 
+                // 🎯 New user via Google/Apple OAuth — fire Meta registration event
+                const isNewUser = !profile?.business_name && !teamRecord;
+                if (isNewUser) {
+                    const eventId = `reg_oauth_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+                    // Server-side Conversions API (reliable, no ad blocker issues)
+                    fetch('/api/meta/conversion', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            event_name: 'CompleteRegistration',
+                            email: session.user.email,
+                            event_id: eventId,
+                            user_agent: navigator.userAgent,
+                        }),
+                    }).catch(() => {});
+                    // Browser pixel deduplication if already loaded
+                    if (typeof window !== 'undefined' && typeof window.fbq === 'function') {
+                        window.fbq('track', 'CompleteRegistration', { currency: 'HUF', value: 0 }, { eventID: eventId });
+                    }
+                }
+
                 if (profile?.business_name || teamRecord) {
                     router.push('/dashboard');
                 } else {

@@ -47,6 +47,41 @@ export default function RegisterPage() {
 
     const handleChange = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
+    // Fire Meta Pixel CompleteRegistration + server-side Conversions API
+    const fireRegistrationEvent = (email) => {
+        const eventId = `reg_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const platformPixelId = process.env.NEXT_PUBLIC_FB_PIXEL_ID;
+
+        // Browser Pixel (deduplication partner for CAPI)
+        if (platformPixelId && typeof window !== 'undefined') {
+            const loadAndFire = () => {
+                if (typeof window.fbq === 'function') {
+                    window.fbq('track', 'CompleteRegistration', { currency: 'HUF', value: 0, content_name: 'register' }, { eventID: eventId });
+                }
+            };
+            if (!window.fbq) {
+                const s = document.createElement('script');
+                s.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${platformPixelId}');fbq('track','PageView');`;
+                document.head.appendChild(s);
+                setTimeout(loadAndFire, 800);
+            } else {
+                loadAndFire();
+            }
+        }
+
+        // Server-side Conversions API (more reliable, not blocked by ad blockers)
+        fetch('/api/meta/conversion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                event_name: 'CompleteRegistration',
+                email,
+                event_id: eventId,
+                user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+            }),
+        }).catch(() => {}); // fire-and-forget, don't block redirect
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
@@ -60,9 +95,10 @@ export default function RegisterPage() {
                 business_type: form.businessType,
             });
 
+            // 🎯 Fire Meta registration event (browser pixel + server CAPI)
+            fireRegistrationEvent(form.email);
+
             if (selectedPlan !== 'free') {
-                // Redirect to Stripe checkout for paid plan (with 14-day trial)
-                // We need profileId — it's created in signUp, so redirect to a special page
                 router.push(`/dashboard/settings?startPlan=${selectedPlan}`);
             } else {
                 router.push('/dashboard');
