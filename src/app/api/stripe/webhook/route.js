@@ -91,7 +91,7 @@ export async function POST(request) {
                         .from('profiles')
                         .select('name, email, business_name')
                         .eq('stripe_subscription_id', subscription.id)
-                        .single();
+                        .maybeSingle();
 
                     // Downgrade to free
                     await supabaseAdmin.from('profiles').update({
@@ -139,7 +139,7 @@ export async function POST(request) {
                         .from('profiles')
                         .select('name, email, business_name')
                         .eq('stripe_customer_id', customerId)
-                        .single();
+                        .maybeSingle();
 
                     if (resend && profile?.email) {
                         try {

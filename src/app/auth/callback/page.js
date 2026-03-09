@@ -38,7 +38,7 @@ export default function AuthCallbackPage() {
                     .from('profiles')
                     .select('business_name')
                     .eq('user_id', session.user.id)
-                    .single();
+                    .maybeSingle();
 
                 // Check if user is a team member (they don't need to set up their own business)
                 const { data: teamRecord } = await supabase
