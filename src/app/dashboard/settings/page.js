@@ -19,6 +19,7 @@ export default function SettingsPage() {
         city: profile?.city || '',
     });
     const [saved, setSaved] = useState(false);
+    const [saveError, setSaveError] = useState('');
     const [subLoading, setSubLoading] = useState('');
     const [subMsg, setSubMsg] = useState('');
     const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
@@ -81,11 +82,16 @@ export default function SettingsPage() {
     }, [searchParams, profile?.id]);
 
     const handleSave = async () => {
+        setSaveError('');
         try {
             await updateProfile({ ...form, avatar_url: avatarUrl || null });
             setSaved(true);
             setTimeout(() => setSaved(false), 2000);
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error('Save error:', err);
+            setSaveError('❌ Mentés sikertelen: ' + (err.message || 'Ismeretlen hiba'));
+            setTimeout(() => setSaveError(''), 6000);
+        }
     };
 
     const handleAvatarUpload = async (e) => {
@@ -200,7 +206,12 @@ export default function SettingsPage() {
                     <h1>Beállítások ⚙️</h1>
                     <p>Profil és fiók beállítások</p>
                 </div>
-                <div className={s.topBarRight}>
+                <div className={s.topBarRight} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    {saveError && (
+                        <span style={{ fontSize: '0.82rem', color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '6px 12px' }}>
+                            {saveError}
+                        </span>
+                    )}
                     <button onClick={handleSave} className="btn btn-primary btn-sm">{saved ? '✅ Mentve!' : '💾 Mentés'}</button>
                 </div>
             </div>

@@ -47,37 +47,40 @@ export function AuthProvider({ children }) {
         if (data) setProfile(data);
 
         // Check if this user is also a team member of someone
+        // Uses /api/team/me (admin supabase) to bypass RLS on profiles join
         if (userEmail) {
-            const { data: teamRecord } = await supabase
-                .from('team_members')
-                .select('*, profiles!team_members_owner_profile_id_fkey(*)')
-                .eq('email', userEmail)
-                .eq('is_active', true)
-                .maybeSingle();
+            try {
+                const res = await fetch(`/api/team/me?email=${encodeURIComponent(userEmail)}`);
+                const { teamRecord } = await res.json();
 
-            if (teamRecord?.profiles) {
-                setTeamMemberInfo({
-                    teamMemberId: teamRecord.id,
-                    teamMemberName: teamRecord.name,
-                    teamMemberRole: teamRecord.role,
-                    ownerProfileId: teamRecord.owner_profile_id,
-                    ownerProfile: teamRecord.profiles,
-                });
-                // Auto-upgrade team member's own subscription_tier to 'basic' while active
-                if (data && data.subscription_tier === 'free') {
-                    supabase.from('profiles')
-                        .update({ subscription_tier: 'basic' })
-                        .eq('user_id', userId)
-                        .then(() => {})
-                        .catch(() => {});
+                if (teamRecord?.profiles) {
+                    setTeamMemberInfo({
+                        teamMemberId: teamRecord.id,
+                        teamMemberName: teamRecord.name,
+                        teamMemberRole: teamRecord.role,
+                        ownerProfileId: teamRecord.owner_profile_id,
+                        ownerProfile: teamRecord.profiles,
+                        ownProfileId: data?.id, // team member's own profile ID for settings
+                    });
+                    // Auto-upgrade team member's own subscription_tier to 'basic' while active
+                    if (data && data.subscription_tier === 'free') {
+                        supabase.from('profiles')
+                            .update({ subscription_tier: 'basic' })
+                            .eq('user_id', userId)
+                            .then(() => {})
+                            .catch(() => {});
+                    }
+                    // Use owner's profile so team member sees owner's calendar, bookings, services
+                    // _ownProfileId lets settings page save to the correct (team member's own) profile
+                    setProfile({
+                        ...teamRecord.profiles,
+                        name: teamRecord.name,
+                        _isTeamMemberOnly: true,
+                        _ownProfileId: data?.id,
+                    });
                 }
-                // Always use owner's profile for team members
-                // so they see the owner's bookings, calendar, services etc.
-                setProfile({
-                    ...teamRecord.profiles,
-                    name: teamRecord.name,
-                    _isTeamMemberOnly: true,
-                });
+            } catch (e) {
+                console.warn('Team member lookup failed:', e.message);
             }
         }
 
@@ -171,14 +174,21 @@ export function AuthProvider({ children }) {
 
     const updateProfile = async (updates) => {
         if (isSupabaseConfigured && supabase && profile?.id) {
+            // Strip email — it's not directly updatable in the profiles table
+            // For team members, save to their own profile, not the owner's
+            const { email: _email, ...safeUpdates } = updates;
+            const targetId = profile._isTeamMemberOnly ? profile._ownProfileId : profile.id;
+            if (!targetId) throw new Error('Nincs profil azonosító a mentéshez');
+
             const { data, error } = await supabase
                 .from('profiles')
-                .update(updates)
-                .eq('id', profile.id)
+                .update(safeUpdates)
+                .eq('id', targetId)
                 .select()
                 .single();
             if (error) throw error;
-            setProfile(data);
+            // Merge so team-member overlay flags (_isTeamMemberOnly, _ownProfileId) are preserved
+            setProfile(prev => ({ ...prev, ...data }));
             return data;
         } else {
             const updated = { ...profile, ...updates };
