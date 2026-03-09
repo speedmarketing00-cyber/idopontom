@@ -9,12 +9,17 @@
 }
 
 .scrolled {
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
     padding: 10px 0;
     border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.menuOpen {
+    background: white !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
 .container {
@@ -87,25 +92,26 @@
 .hamburger {
     display: none;
     flex-direction: column;
-    gap: 5px;
-    padding: 8px;
+    gap: 6px;
+    padding: 10px;
     z-index: 1001;
-    background: none;
-    border: none;
+    background: var(--primary-50);
+    border: 1.5px solid var(--primary-200);
+    border-radius: 10px;
     cursor: pointer;
 }
 
 .hamburger span {
     display: block;
-    width: 24px;
-    height: 2.5px;
-    background: var(--gray-700);
+    width: 28px;
+    height: 3px;
+    background: var(--primary-700);
     border-radius: 2px;
     transition: all var(--transition-base);
 }
 
 .hamburger.active span:nth-child(1) {
-    transform: rotate(45deg) translate(5px, 5px);
+    transform: rotate(45deg) translate(6px, 6px);
 }
 
 .hamburger.active span:nth-child(2) {

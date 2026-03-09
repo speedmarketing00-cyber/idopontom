@@ -16,7 +16,7 @@ export default function Navbar() {
     }, []);
 
     return (
-        <nav className={`${styles.navbar} ${scrolled ? styles.scrolled : ''}`}>
+        <nav className={`${styles.navbar} ${scrolled ? styles.scrolled : ''} ${mobileOpen ? styles.menuOpen : ''}`}>
             <div className={styles.container}>
                 <Link href="/" className={styles.logo}>
                     <span className={styles.logoIcon}>📅</span>
