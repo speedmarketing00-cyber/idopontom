@@ -1,5 +1,6 @@
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
+import CookieBanner from "@/components/CookieBanner";
 
 export const metadata = {
   title: "FoglaljVelem – Online Időpontfoglaló Rendszer",
@@ -17,7 +18,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="hu">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          {children}
+          <CookieBanner />
+        </AuthProvider>
       </body>
     </html>
   );
