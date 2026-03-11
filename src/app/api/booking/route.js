@@ -23,7 +23,7 @@ export async function POST(request) {
         .from('profiles')
         .select('id, user_id, name, business_name, address, subscription_tier')
         .eq('slug', slug)
-        .single();
+        .maybeSingle();
 
       if (profile) {
         profileId = profile.id;

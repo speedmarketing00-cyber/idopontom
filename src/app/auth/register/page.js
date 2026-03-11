@@ -132,42 +132,33 @@ export default function RegisterPage() {
                 {error && <div className={s.errorMsg}>{error}</div>}
 
                 {/* Plan selector */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
+                <div className={s.planGrid}>
                     {PLANS.map(plan => (
                         <div
                             key={plan.id}
                             onClick={() => setSelectedPlan(plan.id)}
+                            className={`${s.planCard} ${selectedPlan === plan.id ? s.planCardSelected : ''}`}
                             style={{
                                 border: `2px solid ${selectedPlan === plan.id ? 'var(--primary-500)' : 'var(--gray-200)'}`,
-                                borderRadius: 14,
-                                padding: '14px 12px',
-                                cursor: 'pointer',
                                 background: selectedPlan === plan.id ? 'var(--primary-50)' : plan.highlight ? 'var(--gray-50)' : 'white',
-                                transition: 'all 0.2s',
-                                position: 'relative',
-                                textAlign: 'center',
                             }}
                         >
                             {plan.highlight && (
-                                <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', background: 'var(--primary-500)', color: 'white', fontSize: '0.65rem', fontWeight: 700, padding: '2px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-                                    LEGNÉPSZERŰBB
-                                </div>
+                                <div className={s.planBadge}>LEGNÉPSZERŰBB</div>
                             )}
                             {plan.trial && (
-                                <div style={{ background: '#dcfce7', color: '#166534', fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: 999, marginBottom: 6, display: 'inline-block' }}>
-                                    ✓ {plan.trial}
-                                </div>
+                                <div className={s.planTrialBadge}>✓ {plan.trial}</div>
                             )}
-                            <div style={{ fontSize: '1.4rem', marginBottom: 4 }}>{plan.emoji}</div>
-                            <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 2 }}>{plan.name}</div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--primary-600)', fontWeight: 600, marginBottom: 8 }}>{plan.price}</div>
-                            <ul style={{ textAlign: 'left', paddingLeft: 14, fontSize: '0.72rem', color: 'var(--gray-500)', listStyle: 'none' }}>
+                            <div className={s.planEmoji}>{plan.emoji}</div>
+                            <div className={s.planName}>{plan.name}</div>
+                            <div className={s.planPrice}>{plan.price}</div>
+                            <ul className={s.planFeatures}>
                                 {plan.features.map(f => (
-                                    <li key={f} style={{ marginBottom: 2 }}>✓ {f}</li>
+                                    <li key={f}>✓ {f}</li>
                                 ))}
                             </ul>
                             {selectedPlan === plan.id && (
-                                <div style={{ marginTop: 8, width: 20, height: 20, borderRadius: '50%', background: 'var(--primary-500)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '8px auto 0', color: 'white', fontSize: '0.8rem' }}>✓</div>
+                                <div className={s.planCheck}>✓</div>
                             )}
                         </div>
                     ))}

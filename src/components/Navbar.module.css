@@ -122,6 +122,11 @@
     transform: rotate(-45deg) translate(6px, -6px);
 }
 
+/* Mobile close X button inside the menu overlay */
+.mobileClose {
+    display: none;
+}
+
 @media (max-width: 900px) {
     .hamburger {
         display: flex;
@@ -142,11 +147,33 @@
         visibility: hidden;
         transition: all var(--transition-base);
         z-index: 1000;
+        overflow-y: auto;
     }
 
     .links.open {
         opacity: 1;
         visibility: visible;
+    }
+
+    .mobileClose {
+        display: block;
+        position: absolute;
+        top: 18px;
+        right: 20px;
+        background: var(--gray-100);
+        border: none;
+        font-size: 1.3rem;
+        cursor: pointer;
+        color: var(--gray-600);
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        z-index: 1002;
+    }
+
+    .mobileClose:hover {
+        background: var(--gray-200);
+        color: var(--gray-800);
     }
 
     .link {

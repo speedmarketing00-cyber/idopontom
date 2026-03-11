@@ -9,11 +9,24 @@ export default function Navbar() {
     const [mobileOpen, setMobileOpen] = useState(false);
     const { user, loading } = useAuth();
 
+    // Scroll detection — skip when mobile menu is open
     useEffect(() => {
-        const handleScroll = () => setScrolled(window.scrollY > 20);
+        const handleScroll = () => {
+            if (!mobileOpen) setScrolled(window.scrollY > 20);
+        };
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
+    }, [mobileOpen]);
+
+    // Lock body scroll when mobile menu is open
+    useEffect(() => {
+        if (mobileOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => { document.body.style.overflow = ''; };
+    }, [mobileOpen]);
 
     return (
         <nav className={`${styles.navbar} ${scrolled ? styles.scrolled : ''} ${mobileOpen ? styles.menuOpen : ''}`}>
@@ -24,6 +37,7 @@ export default function Navbar() {
                 </Link>
 
                 <div className={`${styles.links} ${mobileOpen ? styles.open : ''}`}>
+                    <button className={styles.mobileClose} onClick={() => setMobileOpen(false)} aria-label="Bezárás">✕</button>
                     <a href="#funkcio" className={styles.link} onClick={() => setMobileOpen(false)}>Funkciók</a>
                     <a href="#hogyan" className={styles.link} onClick={() => setMobileOpen(false)}>Hogyan működik?</a>
                     <a href="#arak" className={styles.link} onClick={() => setMobileOpen(false)}>Árak</a>

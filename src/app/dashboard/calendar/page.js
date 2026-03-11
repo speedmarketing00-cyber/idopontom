@@ -219,6 +219,13 @@ export default function CalendarPage() {
 
     const isEmpty = events.length === 0;
     const todayStr = toDateStr(today);
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth < 768);
+        check();
+        window.addEventListener('resize', check);
+        return () => window.removeEventListener('resize', check);
+    }, []);
 
     // View subtitle
     const viewSubtitle = view === 'week'
@@ -228,7 +235,7 @@ export default function CalendarPage() {
         : `Havi nézet – ${today.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })} – ${weekNum}. hét`;
 
     return (
-        <div>
+        <div style={{ maxWidth: '100%', overflowX: 'hidden' }}>
             {selectedBooking && (
                 <CalendarBookingPopup
                     booking={selectedBooking}
@@ -262,7 +269,7 @@ export default function CalendarPage() {
                 </div>
             )}
 
-            <div className={s.contentCard} style={{ overflow: 'auto', padding: 0 }}>
+            <div className={s.contentCard} style={{ overflow: 'auto', padding: 0, maxWidth: '100%' }}>
                 {/* ─── WEEKLY VIEW ─── */}
                 {view === 'week' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '70px repeat(7, 1fr)', minWidth: 900 }}>
@@ -312,8 +319,8 @@ export default function CalendarPage() {
 
                 {/* ─── DAILY VIEW ─── */}
                 {view === 'day' && (
-                    <div style={{ padding: 24 }}>
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <div style={{ padding: isMobile ? 12 : 24 }}>
+                        <div style={{ display: 'flex', gap: isMobile ? 4 : 8, marginBottom: 8 }}>
                             {weekDays.map((d, i) => {
                                 const dayDate = getWeekDateStr(i);
                                 const dayOff = getDayOff(dayDate);
@@ -324,9 +331,12 @@ export default function CalendarPage() {
                                         color: dayOff ? '#dc2626' : selectedDay === i ? 'white' : 'var(--gray-600)',
                                         border: `1.5px solid ${dayOff ? '#fca5a5' : selectedDay === i ? 'var(--primary-500)' : 'var(--gray-200)'}`,
                                         flex: 1, position: 'relative',
+                                        padding: isMobile ? '6px 2px' : undefined,
+                                        fontSize: isMobile ? '0.75rem' : undefined,
+                                        minWidth: 0,
                                     }}>
                                         {dayAbbr[i]}
-                                        {isToday && <span style={{ fontSize: '0.55rem', position: 'absolute', bottom: 2, right: 4, color: selectedDay === i ? 'rgba(255,255,255,0.7)' : 'var(--primary-400)' }}>ma</span>}
+                                        {isToday && <span style={{ fontSize: '0.55rem', position: 'absolute', bottom: 2, right: isMobile ? 2 : 4, color: selectedDay === i ? 'rgba(255,255,255,0.7)' : 'var(--primary-400)' }}>ma</span>}
                                     </button>
                                 );
                             })}
@@ -353,7 +363,7 @@ export default function CalendarPage() {
                                     minHeight: 32,
                                 }}>
                                     <span style={{
-                                        minWidth: 50, fontSize: isHalfHour ? '0.75rem' : '0.85rem',
+                                        minWidth: isMobile ? 38 : 50, fontSize: isHalfHour ? '0.7rem' : (isMobile ? '0.75rem' : '0.85rem'),
                                         color: isHalfHour ? 'var(--gray-300)' : 'var(--gray-400)',
                                         textAlign: 'right', paddingTop: 2,
                                     }}>{slot.label}</span>
@@ -379,20 +389,20 @@ export default function CalendarPage() {
                         weeks.push(monthDays.slice(i, i + 7));
                     }
                     return (
-                        <div style={{ padding: 0 }}>
+                        <div style={{ padding: 0, overflowX: 'auto' }}>
                             {/* Month header */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '50px repeat(7, 1fr)' }}>
-                                <div style={{ padding: 10, background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-100)', textAlign: 'center', fontSize: '0.7rem', color: 'var(--gray-400)', fontWeight: 600 }}>Hét</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '30px repeat(7, 1fr)' : '50px repeat(7, 1fr)', minWidth: isMobile ? 320 : undefined }}>
+                                <div style={{ padding: isMobile ? 6 : 10, background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-100)', textAlign: 'center', fontSize: '0.65rem', color: 'var(--gray-400)', fontWeight: 600 }}>Hét</div>
                                 {dayAbbr.map((d, i) => (
-                                    <div key={i} style={{ padding: 10, textAlign: 'center', borderBottom: '1px solid var(--gray-100)', borderLeft: '1px solid var(--gray-100)', background: 'var(--gray-50)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--gray-600)' }}>{d}</div>
+                                    <div key={i} style={{ padding: isMobile ? 6 : 10, textAlign: 'center', borderBottom: '1px solid var(--gray-100)', borderLeft: '1px solid var(--gray-100)', background: 'var(--gray-50)', fontSize: isMobile ? '0.7rem' : '0.8rem', fontWeight: 600, color: 'var(--gray-600)' }}>{d}</div>
                                 ))}
                             </div>
                             {/* Month rows */}
                             {weeks.map((week, wi) => {
                                 const weekNumRow = getWeekNumber(week.find(d => d.isCurrentMonth)?.date || week[0].date);
                                 return (
-                                    <div key={wi} style={{ display: 'grid', gridTemplateColumns: '50px repeat(7, 1fr)' }}>
-                                        <div style={{ padding: 8, textAlign: 'center', borderBottom: '1px solid var(--gray-50)', fontSize: '0.7rem', color: 'var(--primary-500)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div key={wi} style={{ display: 'grid', gridTemplateColumns: isMobile ? '30px repeat(7, 1fr)' : '50px repeat(7, 1fr)', minWidth: isMobile ? 320 : undefined }}>
+                                        <div style={{ padding: isMobile ? 4 : 8, textAlign: 'center', borderBottom: '1px solid var(--gray-50)', fontSize: '0.65rem', color: 'var(--primary-500)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             {weekNumRow}.
                                         </div>
                                         {week.map((day, di) => {
@@ -411,8 +421,8 @@ export default function CalendarPage() {
                                                     style={{
                                                         borderLeft: '1px solid var(--gray-100)',
                                                         borderBottom: '1px solid var(--gray-50)',
-                                                        padding: 8,
-                                                        minHeight: 80,
+                                                        padding: isMobile ? 4 : 8,
+                                                        minHeight: isMobile ? 56 : 80,
                                                         background: dayOff ? '#fef2f2' : isToday ? 'var(--primary-50)' : 'white',
                                                         opacity: day.isCurrentMonth ? 1 : 0.35,
                                                         cursor: hasEvents ? 'pointer' : 'default',
@@ -423,9 +433,9 @@ export default function CalendarPage() {
                                                 >
                                                     <div style={{
                                                         fontWeight: isToday ? 800 : 600,
-                                                        fontSize: '0.85rem',
+                                                        fontSize: isMobile ? '0.7rem' : '0.85rem',
                                                         color: dayOff ? '#dc2626' : isToday ? 'var(--primary-600)' : 'var(--gray-700)',
-                                                        marginBottom: 4,
+                                                        marginBottom: isMobile ? 2 : 4,
                                                     }}>
                                                         {pad2(day.dayNum)}
                                                     </div>
@@ -435,23 +445,23 @@ export default function CalendarPage() {
                                                         </div>
                                                     )}
                                                     {/* Event indicators */}
-                                                    {dayEvts.slice(0, 3).map((ev, ei) => (
+                                                    {dayEvts.slice(0, isMobile ? 2 : 3).map((ev, ei) => (
                                                         <div key={ei} style={{
-                                                            fontSize: '0.65rem',
-                                                            padding: '2px 6px',
-                                                            marginBottom: 2,
-                                                            borderRadius: 4,
+                                                            fontSize: isMobile ? '0.55rem' : '0.65rem',
+                                                            padding: isMobile ? '1px 3px' : '2px 6px',
+                                                            marginBottom: 1,
+                                                            borderRadius: 3,
                                                             background: ev.raw?.status === 'cancelled' ? '#fee2e2' : 'var(--primary-100)',
                                                             color: ev.raw?.status === 'cancelled' ? '#991b1b' : 'var(--primary-700)',
                                                             overflow: 'hidden',
                                                             textOverflow: 'ellipsis',
                                                             whiteSpace: 'nowrap',
                                                         }}>
-                                                            {ev.raw?.start_time?.slice(0, 5)} {ev.name}
+                                                            {isMobile ? ev.raw?.start_time?.slice(0, 5) : `${ev.raw?.start_time?.slice(0, 5)} ${ev.name}`}
                                                         </div>
                                                     ))}
-                                                    {dayEvts.length > 3 && (
-                                                        <div style={{ fontSize: '0.6rem', color: 'var(--gray-400)', paddingLeft: 6 }}>+{dayEvts.length - 3} további</div>
+                                                    {dayEvts.length > (isMobile ? 2 : 3) && (
+                                                        <div style={{ fontSize: '0.5rem', color: 'var(--gray-400)', paddingLeft: isMobile ? 2 : 6 }}>+{dayEvts.length - (isMobile ? 2 : 3)}</div>
                                                     )}
                                                 </div>
                                             );

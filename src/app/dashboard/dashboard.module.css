@@ -565,4 +565,9 @@
     .quickAction {
         padding: 12px;
     }
+
+    .main {
+        overflow-x: hidden;
+        max-width: 100vw;
+    }
 }

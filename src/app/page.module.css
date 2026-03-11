@@ -738,13 +738,108 @@
 }
 
 @media (max-width: 768px) {
+  .hero {
+    min-height: auto;
+    padding: 100px 0 48px;
+  }
+
+  .heroContent {
+    gap: 32px;
+    padding: 0 16px;
+  }
+
   .heroTitle {
-    font-size: 2.25rem;
+    font-size: 2rem;
+  }
+
+  .heroBadge {
+    font-size: 0.75rem;
+    padding: 6px 12px;
+  }
+
+  .heroDesc {
+    font-size: 1rem;
+  }
+
+  .heroButtons {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .heroStats {
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .statNum {
+    font-size: 1.2rem;
+  }
+
+  .statLabel {
+    font-size: 0.7rem;
+  }
+
+  /* Hide floating cards on mobile - they overflow and look messy */
+  .floatingCard {
+    display: none;
+  }
+
+  .mockup {
+    max-width: 320px;
+    padding: 16px;
+  }
+
+  .mockupAvatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .mockupInfo h4 {
+    font-size: 0.9rem;
+  }
+
+  .slot {
+    padding: 10px 12px;
+  }
+
+  .slotTime {
+    font-size: 0.8rem;
+  }
+
+  .slotBook, .slotBooked {
+    font-size: 0.7rem;
+    padding: 5px 10px;
   }
 
   .featuresGrid {
     grid-template-columns: 1fr;
     max-width: 500px;
+  }
+
+  .featureCard {
+    padding: 24px;
+  }
+
+  .sectionHeader {
+    padding: 0 16px;
+    margin-bottom: 40px;
+  }
+
+  .sectionTitle {
+    font-size: 1.75rem;
+  }
+
+  .sectionDesc {
+    font-size: 0.9rem;
+  }
+
+  .features,
+  .howItWorks,
+  .pricing,
+  .testimonials,
+  .cta {
+    padding: 56px 0;
   }
 
   .stepsGrid {
@@ -761,6 +856,14 @@
     max-width: 400px;
   }
 
+  .pricingCard {
+    padding: 28px;
+  }
+
+  .priceAmount {
+    font-size: 2rem;
+  }
+
   .pricingPopular {
     transform: none;
   }
@@ -770,12 +873,40 @@
     max-width: 500px;
   }
 
+  .testimonialCard {
+    padding: 24px;
+  }
+
   .ctaBox {
-    padding: 48px 24px;
-    margin: 0 24px;
+    padding: 40px 20px;
+    margin: 0 16px;
+    border-radius: 20px;
   }
 
   .ctaBox h2 {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
+  }
+
+  .ctaBox p {
+    font-size: 0.9rem;
+  }
+
+  .ctaBtn {
+    padding: 14px 28px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .heroTitle {
+    font-size: 1.7rem;
+  }
+
+  .heroContent {
+    padding: 0 12px;
+  }
+
+  .mockup {
+    max-width: 280px;
   }
 }

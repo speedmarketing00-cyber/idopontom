@@ -117,7 +117,7 @@ export async function getProfileBySlug(slug) {
         .from('profiles')
         .select('*, services(*), availability(*), reviews(*)')
         .eq('slug', slug)
-        .single();
+        .maybeSingle();
     if (error) { console.error(error); return null; }
     return data;
 }
