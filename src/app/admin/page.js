@@ -65,6 +65,20 @@ export default function AdminPage() {
         }
     };
 
+    const impersonate = async (profileId, name) => {
+        try {
+            setMsg(`⏳ Belépés "${name}" fiókjába...`);
+            const data = await adminFetch('impersonate', { profileId });
+            if (data.url) {
+                window.open(data.url, '_blank');
+                setMsg(`✅ Megnyitva új fülben: "${name}"`);
+            }
+            setTimeout(() => setMsg(''), 3000);
+        } catch (err) {
+            setMsg('❌ ' + err.message);
+        }
+    };
+
     const deleteProfile = async (profileId, name) => {
         if (!confirm(`Biztosan törlöd "${name}" fiókját? Ez nem visszavonható!`)) return;
         try {
@@ -197,6 +211,11 @@ export default function AdminPage() {
                             <button onClick={() => setEditing(editing === p.id ? null : p.id)}
                                 style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>
                                 ✏️
+                            </button>
+                            <button onClick={() => impersonate(p.id, p.business_name || p.name)}
+                                title="Belépés az ő dashboardjára"
+                                style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #c7d2fe', background: '#eef2ff', cursor: 'pointer', fontSize: '0.85rem', color: '#4f46e5' }}>
+                                🔑
                             </button>
                             <button onClick={() => window.open(`/book/${p.slug}`, '_blank')}
                                 style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>

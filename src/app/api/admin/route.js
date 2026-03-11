@@ -66,6 +66,45 @@ export async function POST(request) {
             return Response.json({ success: true });
         }
 
+        if (action === 'impersonate') {
+            // Get user_id from profile
+            const { data: profile } = await supabaseAdmin
+                .from('profiles')
+                .select('user_id')
+                .eq('id', profileId)
+                .single();
+
+            if (!profile?.user_id) {
+                return Response.json({ error: 'Profil nem található.' }, { status: 404 });
+            }
+
+            // Get user email from Supabase auth
+            const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(profile.user_id);
+            if (userError || !userData?.user?.email) {
+                return Response.json({ error: 'Felhasználó email nem található.' }, { status: 404 });
+            }
+
+            // Generate magic link for this user
+            const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+                type: 'magiclink',
+                email: userData.user.email,
+                options: {
+                    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://foglaljvelem.hu'}/dashboard`,
+                },
+            });
+
+            if (linkError) throw linkError;
+
+            // The action_link contains the full verification URL
+            // We need to extract the token and redirect through our callback
+            const actionLink = linkData?.properties?.action_link;
+            if (!actionLink) {
+                return Response.json({ error: 'Magic link generálás sikertelen.' }, { status: 500 });
+            }
+
+            return Response.json({ url: actionLink });
+        }
+
         if (action === 'stats') {
             const [profiles, bookings, services] = await Promise.all([
                 supabaseAdmin.from('profiles').select('id', { count: 'exact' }),
