@@ -302,7 +302,7 @@ export default function BookingPage({ params }) {
 
             // Redirect: custom thank-you URL (external) or built-in page
             if (provider?.custom_thankyou_url) {
-              window.location.href = provider.custom_thankyou_url;
+              window.top.location.href = provider.custom_thankyou_url;
               return;
             }
 
