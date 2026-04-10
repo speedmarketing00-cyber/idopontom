@@ -49,18 +49,29 @@ export async function POST(request) {
       const endTime = `${String(Math.floor(endTotalMin / 60)).padStart(2, '0')}:${String(endTotalMin % 60).padStart(2, '0')}`;
 
       // ── Server-side double-booking prevention ──
-      // Check if any confirmed booking overlaps with the requested time slot
-      const { data: existingBookings } = await supabaseAdmin.from('bookings')
+      // Check if any confirmed booking overlaps with the requested time slot.
+      // NOTE: This is a best-effort check. The authoritative guarantee is the
+      // `bookings_no_overlap` exclusion constraint in the database, which will
+      // reject the INSERT below with code 23P01 if a race condition slips past
+      // this check.
+      const { data: existingBookings, error: selectError } = await supabaseAdmin.from('bookings')
         .select('id, start_time, end_time, team_member_id')
         .eq('profile_id', profileId)
         .eq('booking_date', date)
         .eq('status', 'confirmed');
 
+      if (selectError) {
+        // If we cannot verify availability, DO NOT allow the booking through.
+        console.error('Booking overlap check failed:', selectError);
+        return Response.json({ error: 'Nem sikerült ellenőrizni az időpont elérhetőségét. Kérlek próbáld újra.' }, { status: 500 });
+      }
+
       if (existingBookings && existingBookings.length > 0) {
-        // Filter by team member if applicable
-        const relevantBookings = teamMemberId
-          ? existingBookings.filter(b => b.team_member_id === teamMemberId)
-          : existingBookings;
+        // Symmetric team-member lane logic:
+        // - Owner bookings (team_member_id = null) only conflict with other owner bookings.
+        // - Team member X bookings only conflict with other team member X bookings.
+        const newMemberId = teamMemberId || null;
+        const relevantBookings = existingBookings.filter(b => (b.team_member_id || null) === newMemberId);
 
         const hasOverlap = relevantBookings.some(b => {
           const [bsh, bsm] = (b.start_time || '00:00').slice(0, 5).split(':').map(Number);
@@ -103,6 +114,12 @@ export async function POST(request) {
 
       if (insertError) {
         console.error('Booking insert error:', insertError);
+        // 23P01 = exclusion constraint violation (bookings_no_overlap)
+        // 23505 = unique constraint violation (fallback)
+        // These mean: the DB guaranteed atomicity and another booking won the race.
+        if (insertError.code === '23P01' || insertError.code === '23505') {
+          return Response.json({ error: 'Ez az időpont már foglalt! Kérlek válassz másik időpontot.' }, { status: 409 });
+        }
         return Response.json({ error: 'Nem sikerült menteni a foglalást: ' + insertError.message }, { status: 500 });
       }
     }

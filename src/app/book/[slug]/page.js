@@ -300,7 +300,12 @@ export default function BookingPage({ params }) {
                 return;
             }
 
-            // Redirect to thank you page (fires Meta Pixel Lead event there)
+            // Redirect: custom thank-you URL (external) or built-in page
+            if (provider?.custom_thankyou_url) {
+              window.location.href = provider.custom_thankyou_url;
+              return;
+            }
+
             const params = new URLSearchParams({
                 service:  svc?.name || '',
                 date:     dateStr,

@@ -19,6 +19,7 @@ const navItems = [
     { icon: '📧', label: 'Email beállítások', href: '/dashboard/email-settings', tier: 'basic' },
     { icon: '📊', label: 'Meta Pixel', href: '/dashboard/meta-pixel', tier: 'free' },
     { icon: '🔗', label: 'Beágyazás', href: '/dashboard/embed', tier: 'free' },
+    { icon: '🎯', label: 'Köszönjük oldal', href: '/dashboard/thankyou', tier: 'free' },
     { icon: '⚙️', label: 'Beállítások', href: '/dashboard/settings', tier: 'free' },
 ];
 
