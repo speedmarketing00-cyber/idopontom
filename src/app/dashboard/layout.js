@@ -20,6 +20,10 @@ const navItems = [
     { icon: '📊', label: 'Meta Pixel', href: '/dashboard/meta-pixel', tier: 'free' },
     { icon: '🔗', label: 'Beágyazás', href: '/dashboard/embed', tier: 'free' },
     { icon: '🎯', label: 'Köszönjük oldal', href: '/dashboard/thankyou', tier: 'free' },
+    { divider: true },
+    { icon: '🧾', label: 'Számlázás', href: '/dashboard/invoices', tier: 'pro' },
+    { icon: '🏢', label: 'Cégadatok', href: '/dashboard/invoice-settings', tier: 'pro' },
+    { divider: true },
     { icon: '⚙️', label: 'Beállítások', href: '/dashboard/settings', tier: 'free' },
 ];
 
