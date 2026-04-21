@@ -272,6 +272,44 @@ export default function SettingsPage() {
                 </div>
             </div>
 
+            {/* GOOGLE CALENDAR SYNC */}
+            <div className={s.contentCard} style={{ padding: 32, marginBottom: 24 }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 8 }}>📅 Google Naptár szinkron</h3>
+                <p style={{ fontSize: '0.9rem', color: 'var(--gray-500)', marginBottom: 20, lineHeight: 1.6 }}>
+                    Ha bekapcsolod, a Google Naptáradban lévő elfoglaltságok automatikusan blokkolva lesznek a foglalási oldaladon — az ügyfelek nem tudják azokat az időpontokat lefoglalni.
+                </p>
+                {!profile?.google_refresh_token ? (
+                    <div style={{ padding: '14px 18px', borderRadius: 10, background: '#fffbeb', border: '1px solid #fcd34d', fontSize: '0.85rem', color: '#92400e', lineHeight: 1.6 }}>
+                        ⚠️ A Google Naptár szinkronhoz <strong>Google fiókkal</strong> kell bejelentkezned. Ha email+jelszóval regisztráltál, jelentkezz ki és jelentkezz be Google-lel.
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <button
+                            onClick={async () => {
+                                const newVal = !profile?.google_calendar_enabled;
+                                await supabase.from('profiles').update({ google_calendar_enabled: newVal }).eq('id', profile.id);
+                                // Update local profile state
+                                await updateProfile({ google_calendar_enabled: newVal });
+                            }}
+                            className="btn btn-sm"
+                            style={{
+                                background: profile?.google_calendar_enabled ? '#f0fdf4' : 'var(--gray-100)',
+                                color: profile?.google_calendar_enabled ? '#16a34a' : 'var(--gray-500)',
+                                border: profile?.google_calendar_enabled ? '1px solid #86efac' : '1px solid var(--gray-200)',
+                                minWidth: 160,
+                            }}
+                        >
+                            {profile?.google_calendar_enabled ? '✅ Bekapcsolva' : '❌ Kikapcsolva'}
+                        </button>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>
+                            {profile?.google_calendar_enabled
+                                ? 'A Google Naptárad foglaltságai blokkolva vannak a foglalási oldaladon.'
+                                : 'Kattints a bekapcsoláshoz.'}
+                        </span>
+                    </div>
+                )}
+            </div>
+
             {/* SUBSCRIPTION */}
             <div className={s.contentCard} style={{ padding: 32, marginBottom: 24 }}>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 16 }}>💰 Előfizetés</h3>

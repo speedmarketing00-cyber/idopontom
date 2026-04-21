@@ -158,7 +158,20 @@ export default function BookingPage({ params }) {
                 const { data: bookings } = await supabase.from('bookings').select('booking_date, start_time, end_time, team_member_id')
                     .eq('profile_id', profile.id).eq('status', 'confirmed')
                     .gte('booking_date', today).lte('booking_date', future);
-                setBookedSlots(bookings || []);
+
+                // 5b. Load Google Calendar busy times (if provider enabled sync)
+                let gcalSlots = [];
+                if (profile.google_calendar_enabled) {
+                    try {
+                        const gcalRes = await fetch(`/api/google-calendar?profileId=${profile.id}&from=${today}&to=${future}`);
+                        const gcalData = await gcalRes.json();
+                        gcalSlots = gcalData.busySlots || [];
+                    } catch (e) {
+                        console.warn('Google Calendar fetch failed:', e.message);
+                    }
+                }
+
+                setBookedSlots([...(bookings || []), ...gcalSlots]);
 
                 // 6. Load days off (date ranges)
                 const { data: off } = await supabase.from('days_off').select('start_date, end_date')
@@ -249,7 +262,7 @@ export default function BookingPage({ params }) {
         ? (provider?.name || provider?.business_name)
         : teamMembers.find(m => m.id === selectedMember)?.name;
 
-    // Reload booked slots from database
+    // Reload booked slots from database + Google Calendar
     const refreshBookedSlots = async () => {
         if (!isSupabaseConfigured || !supabase || !provider) return;
         const todayStr = new Date().toISOString().split('T')[0];
@@ -257,7 +270,17 @@ export default function BookingPage({ params }) {
         const { data: bookings } = await supabase.from('bookings').select('booking_date, start_time, end_time, team_member_id')
             .eq('profile_id', provider.id).eq('status', 'confirmed')
             .gte('booking_date', todayStr).lte('booking_date', futureStr);
-        setBookedSlots(bookings || []);
+
+        let gcalSlots = [];
+        if (provider.google_calendar_enabled) {
+            try {
+                const gcalRes = await fetch(`/api/google-calendar?profileId=${provider.id}&from=${todayStr}&to=${futureStr}`);
+                const gcalData = await gcalRes.json();
+                gcalSlots = gcalData.busySlots || [];
+            } catch (e) { /* silent */ }
+        }
+
+        setBookedSlots([...(bookings || []), ...gcalSlots]);
     };
 
     const handleBook = async () => {

@@ -20,7 +20,13 @@ export function AuthProvider({ children }) {
 
             const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
                 setUser(session?.user ?? null);
-                if (session?.user) fetchProfile(session.user.id, session.user.email);
+                if (session?.user) {
+                    fetchProfile(session.user.id, session.user.email);
+                    // Save Google refresh token if available (for Calendar sync)
+                    if (session.provider_refresh_token && session.user.app_metadata?.provider === 'google') {
+                        saveGoogleRefreshToken(session.user.id, session.provider_refresh_token);
+                    }
+                }
                 else { setProfile(null); setTeamMemberInfo(null); setLoading(false); }
             });
 
@@ -35,6 +41,19 @@ export function AuthProvider({ children }) {
             setLoading(false);
         }
     }, []);
+
+    // Persist Google refresh token to profile (for server-side Calendar sync)
+    const saveGoogleRefreshToken = async (userId, refreshToken) => {
+        if (!supabase || !refreshToken) return;
+        try {
+            const { data: prof } = await supabase.from('profiles').select('id').eq('user_id', userId).maybeSingle();
+            if (prof) {
+                await supabase.from('profiles').update({ google_refresh_token: refreshToken }).eq('id', prof.id);
+            }
+        } catch (e) {
+            console.warn('Failed to save Google refresh token:', e.message);
+        }
+    };
 
     const fetchProfile = async (userId, userEmail) => {
         if (!supabase) return;
@@ -97,13 +116,18 @@ export function AuthProvider({ children }) {
         }
     };
 
-    // Google OAuth
+    // Google OAuth (with Calendar read scope for sync)
     const signInWithGoogle = async () => {
         if (isSupabaseConfigured && supabase) {
             const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
                     redirectTo: `${window.location.origin}/auth/callback`,
+                    scopes: 'https://www.googleapis.com/auth/calendar.readonly',
+                    queryParams: {
+                        access_type: 'offline',
+                        prompt: 'consent',
+                    },
                 }
             });
             if (error) throw error;
