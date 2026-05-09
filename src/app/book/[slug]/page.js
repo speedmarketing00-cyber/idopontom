@@ -499,7 +499,7 @@ export default function BookingPage({ params }) {
                                 <div className={s.serviceList}>
                                     {filteredServices.map(svc => (
                                         <div key={svc.id} className={`${s.serviceOption} ${selectedService === svc.id ? s.selected : ''}`}
-                                            onClick={() => setSelectedService(svc.id)}>
+                                            onClick={() => { setSelectedService(svc.id); setStep(STEP_DATE); }}>
                                             <div className={s.serviceDetails}>
                                                 <h4>{svc.name}</h4>
                                                 <p>{svc.category ? `${svc.category} • ` : ''}{svc.duration_minutes} perc</p>
