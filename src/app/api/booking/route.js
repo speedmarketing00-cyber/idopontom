@@ -10,7 +10,7 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { clientName, clientEmail, clientPhone, notes, serviceName, duration, price, date, time, slug, teamMemberId } = body;
+    const { clientName, clientEmail, clientPhone, notes, serviceName, duration, price, date, time, slug, teamMemberId, serviceId: bodyServiceId } = body;
 
     // 1. Find the provider profile by slug
     let providerName = 'Szolgáltató';
@@ -48,54 +48,99 @@ export async function POST(request) {
       const endTotalMin = startMin + durationMin;
       const endTime = `${String(Math.floor(endTotalMin / 60)).padStart(2, '0')}:${String(endTotalMin % 60).padStart(2, '0')}`;
 
+      // ── Resolve the service to check for group session ──
+      let resolvedServiceId = bodyServiceId || body.serviceId || null;
+      let isGroupSession = false;
+      let maxCapacity = 1;
+
+      if (resolvedServiceId) {
+        const { data: svcRow } = await supabaseAdmin.from('services')
+          .select('id, is_group_session, max_capacity').eq('id', resolvedServiceId).maybeSingle();
+        if (svcRow) {
+          isGroupSession = svcRow.is_group_session || false;
+          maxCapacity = svcRow.max_capacity || 1;
+        }
+      } else if (serviceName) {
+        const { data: svcRow } = await supabaseAdmin.from('services')
+          .select('id, is_group_session, max_capacity')
+          .eq('profile_id', profileId).eq('name', serviceName).maybeSingle();
+        if (svcRow) {
+          resolvedServiceId = svcRow.id;
+          isGroupSession = svcRow.is_group_session || false;
+          maxCapacity = svcRow.max_capacity || 1;
+        }
+      }
+
       // ── Server-side double-booking prevention ──
-      // Check if any confirmed booking overlaps with the requested time slot.
-      // NOTE: This is a best-effort check. The authoritative guarantee is the
-      // `bookings_no_overlap` exclusion constraint in the database, which will
-      // reject the INSERT below with code 23P01 if a race condition slips past
-      // this check.
       const { data: existingBookings, error: selectError } = await supabaseAdmin.from('bookings')
-        .select('id, start_time, end_time, team_member_id')
+        .select('id, start_time, end_time, team_member_id, service_id')
         .eq('profile_id', profileId)
         .eq('booking_date', date)
         .eq('status', 'confirmed');
 
       if (selectError) {
-        // If we cannot verify availability, DO NOT allow the booking through.
         console.error('Booking overlap check failed:', selectError);
         return Response.json({ error: 'Nem sikerült ellenőrizni az időpont elérhetőségét. Kérlek próbáld újra.' }, { status: 500 });
       }
 
-      if (existingBookings && existingBookings.length > 0) {
-        // Symmetric team-member lane logic:
-        // - Owner bookings (team_member_id = null) only conflict with other owner bookings.
-        // - Team member X bookings only conflict with other team member X bookings.
-        const newMemberId = teamMemberId || null;
-        const relevantBookings = existingBookings.filter(b => (b.team_member_id || null) === newMemberId);
+      if (isGroupSession) {
+        // ── GROUP SESSION: check capacity instead of overlap ──
+        const sameSlotBookings = (existingBookings || []).filter(b =>
+          b.service_id === resolvedServiceId &&
+          (b.start_time || '').slice(0, 5) === time.slice(0, 5)
+        );
+        if (sameSlotBookings.length >= maxCapacity) {
+          return Response.json({ error: 'Ez a csoportos óra már betelt! Kérlek válassz másik időpontot.' }, { status: 409 });
+        }
 
-        const hasOverlap = relevantBookings.some(b => {
-          const [bsh, bsm] = (b.start_time || '00:00').slice(0, 5).split(':').map(Number);
-          const [beh, bem] = (b.end_time || '00:30').slice(0, 5).split(':').map(Number);
-          const bStart = bsh * 60 + bsm;
-          const bEnd = beh * 60 + bem;
-          // Overlap: new slot starts before existing ends AND new slot ends after existing starts
-          return startMin < bEnd && endTotalMin > bStart;
-        });
+        // Also check that no individual booking overlaps with this group slot
+        // (individual bookings during group session time are not allowed)
+      } else {
+        // ── REGULAR SERVICE: standard overlap check ──
+        if (existingBookings && existingBookings.length > 0) {
+          const newMemberId = teamMemberId || null;
+          const relevantBookings = existingBookings.filter(b => (b.team_member_id || null) === newMemberId);
 
-        if (hasOverlap) {
-          return Response.json({ error: 'Ez az időpont már foglalt! Kérlek válassz másik időpontot.' }, { status: 409 });
+          const hasOverlap = relevantBookings.some(b => {
+            const [bsh, bsm] = (b.start_time || '00:00').slice(0, 5).split(':').map(Number);
+            const [beh, bem] = (b.end_time || '00:30').slice(0, 5).split(':').map(Number);
+            const bStart = bsh * 60 + bsm;
+            const bEnd = beh * 60 + bem;
+            return startMin < bEnd && endTotalMin > bStart;
+          });
+
+          if (hasOverlap) {
+            return Response.json({ error: 'Ez az időpont már foglalt! Kérlek válassz másik időpontot.' }, { status: 409 });
+          }
+        }
+
+        // Check if this individual booking overlaps with any group session time
+        // Load group schedules for all group services of this provider
+        const { data: groupSvcs } = await supabaseAdmin.from('services')
+          .select('id').eq('profile_id', profileId).eq('is_group_session', true).eq('is_active', true);
+        if (groupSvcs && groupSvcs.length > 0) {
+          const dayOfWeek = (new Date(date).getDay() + 6) % 7; // 0=Monday
+          const { data: groupSlots } = await supabaseAdmin.from('group_schedule')
+            .select('start_time, end_time')
+            .in('service_id', groupSvcs.map(s => s.id))
+            .eq('day_of_week', dayOfWeek);
+          if (groupSlots && groupSlots.length > 0) {
+            const overlapsGroup = groupSlots.some(gs => {
+              const [gsh, gsm] = (gs.start_time || '09:00').slice(0, 5).split(':').map(Number);
+              const [geh, gem] = (gs.end_time || '10:00').slice(0, 5).split(':').map(Number);
+              const gStart = gsh * 60 + gsm;
+              const gEnd = geh * 60 + gem;
+              return startMin < gEnd && endTotalMin > gStart;
+            });
+            if (overlapsGroup) {
+              return Response.json({ error: 'Ez az időpont csoportos órának van fenntartva! Kérlek válassz másik időpontot.' }, { status: 409 });
+            }
+          }
         }
       }
 
-      // Find service_id by name
-      let serviceId = null;
-      if (body.serviceId) {
-        serviceId = body.serviceId;
-      } else if (serviceName) {
-        const { data: svcRow } = await supabaseAdmin.from('services')
-          .select('id').eq('profile_id', profileId).eq('name', serviceName).maybeSingle();
-        serviceId = svcRow?.id || null;
-      }
+      // Use already-resolved service ID
+      const serviceId = resolvedServiceId;
 
       const { error: insertError } = await supabaseAdmin.from('bookings').insert({
         profile_id: profileId,

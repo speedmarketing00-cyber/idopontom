@@ -2,16 +2,55 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { getServices, createService, updateService, deleteService, saveCommunityTemplate, getAllCommunityTemplates } from '@/lib/db';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { SERVICE_CATALOG, searchTemplates, getAllTemplatesPrioritized, getTemplatesForType } from '@/lib/service-catalog';
 import s from '../dashboard.module.css';
+
+// ~30 selectable icons (NO YOGA!)
+const SERVICE_ICONS = [
+    { emoji: '💇', label: 'Fodrász' },
+    { emoji: '💅', label: 'Manikűr' },
+    { emoji: '💆', label: 'Masszázs' },
+    { emoji: '💈', label: 'Borbély' },
+    { emoji: '💄', label: 'Smink' },
+    { emoji: '👁️', label: 'Szempilla' },
+    { emoji: '✂️', label: 'Varrás' },
+    { emoji: '🪒', label: 'Borotválás' },
+    { emoji: '🦷', label: 'Fogászat' },
+    { emoji: '🏥', label: 'Orvos' },
+    { emoji: '💪', label: 'Edzés' },
+    { emoji: '🏋️', label: 'Súlyzó' },
+    { emoji: '🏃', label: 'Cardio' },
+    { emoji: '🚴', label: 'Spinning' },
+    { emoji: '🥊', label: 'Box' },
+    { emoji: '🎾', label: 'Tenisz' },
+    { emoji: '⚽', label: 'Foci' },
+    { emoji: '🏊', label: 'Úszás' },
+    { emoji: '📚', label: 'Oktatás' },
+    { emoji: '💼', label: 'Tanácsadás' },
+    { emoji: '📷', label: 'Fotó' },
+    { emoji: '🎨', label: 'Művészet' },
+    { emoji: '🎵', label: 'Zene' },
+    { emoji: '🐾', label: 'Kisállat' },
+    { emoji: '🍽️', label: 'Étterem' },
+    { emoji: '☕', label: 'Kávézó' },
+    { emoji: '🧹', label: 'Takarítás' },
+    { emoji: '🔧', label: 'Szerelés' },
+    { emoji: '🚗', label: 'Autó' },
+    { emoji: '💻', label: 'IT' },
+    { emoji: '📅', label: 'Általános' },
+];
+
+const DAY_NAMES = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap'];
 
 export default function ServicesPage() {
     const { profile } = useAuth();
     const [services, setServices] = useState([]);
     const [isAdding, setIsAdding] = useState(false);
     const [editId, setEditId] = useState(null);
-    const [form, setForm] = useState({ name: '', duration_minutes: 30, price: '', category: '', description: '' });
+    const [form, setForm] = useState({ name: '', duration_minutes: 30, price: '', category: '', description: '', icon: '', is_group_session: false, max_capacity: 10, show_capacity: false });
+    const [groupSchedule, setGroupSchedule] = useState([]); // [{day_of_week, start_time, end_time}]
+    const [showIconPicker, setShowIconPicker] = useState(false);
     const [showCatalog, setShowCatalog] = useState(false);
     const [search, setSearch] = useState('');
     const [catalogSection, setCatalogSection] = useState('mine');
@@ -44,29 +83,76 @@ export default function ServicesPage() {
     const handleSave = async () => {
         if (!form.name || !form.price) return;
         try {
+            const svcFields = {
+                name: form.name,
+                duration_minutes: Number(form.duration_minutes),
+                price: Number(form.price),
+                category: form.category,
+                description: form.description,
+                icon: form.icon || null,
+                is_group_session: form.is_group_session || false,
+                max_capacity: form.is_group_session ? Number(form.max_capacity) || 10 : 1,
+                show_capacity: form.is_group_session ? (form.show_capacity || false) : false,
+            };
+
             if (editId) {
-                const updated = { name: form.name, duration_minutes: Number(form.duration_minutes), price: Number(form.price), category: form.category, description: form.description };
                 if (isSupabaseConfigured && profile?.id) {
-                    const data = await updateService(editId, updated);
+                    const data = await updateService(editId, svcFields);
                     setServices(prev => prev.map(s => s.id === editId ? data : s));
+                    // Save group schedule
+                    if (form.is_group_session) {
+                        await saveGroupSchedule(editId, groupSchedule);
+                    } else {
+                        // Clear schedule if no longer group
+                        await saveGroupSchedule(editId, []);
+                    }
                 } else {
-                    setServices(prev => prev.map(s => s.id === editId ? { ...s, ...updated } : s));
+                    setServices(prev => prev.map(s => s.id === editId ? { ...s, ...svcFields } : s));
                 }
                 setEditId(null);
             } else {
-                const newSvc = { name: form.name, duration_minutes: Number(form.duration_minutes), price: Number(form.price), category: form.category, description: form.description, profile_id: profile?.id };
+                const newSvc = { ...svcFields, profile_id: profile?.id };
                 if (isSupabaseConfigured && profile?.id) {
                     const data = await createService(newSvc);
                     setServices(prev => [...prev, data]);
+                    // Save group schedule for new service
+                    if (form.is_group_session && data?.id) {
+                        await saveGroupSchedule(data.id, groupSchedule);
+                    }
                     // Save as community template so others can find it
                     saveCommunityTemplate({ ...newSvc, business_type: businessType }).catch(() => { });
                 } else {
                     setServices(prev => [...prev, { ...newSvc, id: Date.now(), is_active: true }]);
                 }
             }
-            setForm({ name: '', duration_minutes: 30, price: '', category: '', description: '' });
+            setForm({ name: '', duration_minutes: 30, price: '', category: '', description: '', icon: '', is_group_session: false, max_capacity: 10, show_capacity: false });
+            setGroupSchedule([]);
             setIsAdding(false);
         } catch (err) { console.error(err); }
+    };
+
+    // Save group schedule (delete + re-insert)
+    const saveGroupSchedule = async (serviceId, schedule) => {
+        if (!isSupabaseConfigured || !supabase) return;
+        // Delete existing schedule
+        await supabase.from('group_schedule').delete().eq('service_id', serviceId);
+        // Insert new schedule entries
+        if (schedule.length > 0) {
+            const rows = schedule.map(s => ({
+                service_id: serviceId,
+                day_of_week: s.day_of_week,
+                start_time: s.start_time,
+                end_time: s.end_time,
+            }));
+            await supabase.from('group_schedule').insert(rows);
+        }
+    };
+
+    // Load group schedule for a service being edited
+    const loadGroupSchedule = async (serviceId) => {
+        if (!isSupabaseConfigured || !supabase) return [];
+        const { data } = await supabase.from('group_schedule').select('*').eq('service_id', serviceId).order('day_of_week');
+        return data || [];
     };
 
     const handleAddFromCatalog = async (tpl) => {
@@ -79,7 +165,29 @@ export default function ServicesPage() {
         }
     };
 
-    const handleEdit = (svc) => { setForm({ name: svc.name, duration_minutes: svc.duration_minutes, price: svc.price, category: svc.category || '', description: svc.description || '' }); setEditId(svc.id); setIsAdding(true); setShowCatalog(false); };
+    const handleEdit = async (svc) => {
+        setForm({
+            name: svc.name,
+            duration_minutes: svc.duration_minutes,
+            price: svc.price,
+            category: svc.category || '',
+            description: svc.description || '',
+            icon: svc.icon || '',
+            is_group_session: svc.is_group_session || false,
+            max_capacity: svc.max_capacity || 10,
+            show_capacity: svc.show_capacity || false,
+        });
+        setEditId(svc.id);
+        setIsAdding(true);
+        setShowCatalog(false);
+        // Load group schedule if it's a group session
+        if (svc.is_group_session) {
+            const schedule = await loadGroupSchedule(svc.id);
+            setGroupSchedule(schedule.map(s => ({ day_of_week: s.day_of_week, start_time: s.start_time?.slice(0, 5), end_time: s.end_time?.slice(0, 5) })));
+        } else {
+            setGroupSchedule([]);
+        }
+    };
 
     const handleToggle = async (id) => {
         const svc = services.find(s => s.id === id);
@@ -103,7 +211,7 @@ export default function ServicesPage() {
                     <button onClick={() => { setShowCatalog(!showCatalog); setIsAdding(false); }} className="btn btn-secondary btn-sm">
                         {showCatalog ? '← Vissza' : '📚 Katalógus'}
                     </button>
-                    <button onClick={() => { setIsAdding(true); setEditId(null); setShowCatalog(false); setForm({ name: '', duration_minutes: 30, price: '', category: '', description: '' }); }} className="btn btn-primary btn-sm">+ Egyéni</button>
+                    <button onClick={() => { setIsAdding(true); setEditId(null); setShowCatalog(false); setGroupSchedule([]); setForm({ name: '', duration_minutes: 30, price: '', category: '', description: '', icon: '', is_group_session: false, max_capacity: 10, show_capacity: false }); }} className="btn btn-primary btn-sm">+ Egyéni</button>
                 </div>
             </div>
 
@@ -202,6 +310,48 @@ export default function ServicesPage() {
                     <h3 style={{ marginBottom: 16, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.1rem' }}>
                         {editId ? '✏️ Szolgáltatás szerkesztése' : '➕ Egyéni szolgáltatás'}
                     </h3>
+
+                    {/* ICON PICKER */}
+                    <div className="input-group" style={{ marginBottom: 16 }}>
+                        <label className="input-label">Ikon</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <button onClick={() => setShowIconPicker(!showIconPicker)} style={{
+                                width: 52, height: 52, borderRadius: 14, border: '2px dashed var(--gray-200)',
+                                background: form.icon ? 'var(--primary-50)' : 'var(--gray-50)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '1.5rem', cursor: 'pointer', transition: 'all 0.2s',
+                            }}>
+                                {form.icon || '➕'}
+                            </button>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>
+                                {form.icon ? SERVICE_ICONS.find(i => i.emoji === form.icon)?.label || 'Egyéni' : 'Válassz ikont a szolgáltatáshoz'}
+                            </span>
+                        </div>
+                        {showIconPicker && (
+                            <div style={{ marginTop: 10, padding: 16, background: 'var(--gray-50)', borderRadius: 14, border: '1px solid var(--gray-100)' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px, 1fr))', gap: 8 }}>
+                                    {SERVICE_ICONS.map(ic => (
+                                        <button key={ic.emoji} onClick={() => { setForm(p => ({ ...p, icon: ic.emoji })); setShowIconPicker(false); }}
+                                            style={{
+                                                padding: '10px 4px', borderRadius: 10, border: form.icon === ic.emoji ? '2px solid var(--primary-500)' : '2px solid transparent',
+                                                background: form.icon === ic.emoji ? 'var(--primary-50)' : 'white',
+                                                cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
+                                            }}>
+                                            <div style={{ fontSize: '1.4rem' }}>{ic.emoji}</div>
+                                            <div style={{ fontSize: '0.65rem', color: 'var(--gray-500)', marginTop: 2 }}>{ic.label}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                                {form.icon && (
+                                    <button onClick={() => { setForm(p => ({ ...p, icon: '' })); setShowIconPicker(false); }}
+                                        style={{ marginTop: 10, fontSize: '0.8rem', color: 'var(--gray-500)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        ✕ Ikon eltávolítása
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                         <div className="input-group"><label className="input-label">Név</label><input className="input" placeholder="pl. Hajvágás" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
                         <div className="input-group"><label className="input-label">Kategória</label><input className="input" placeholder="pl. Hajápolás" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} /></div>
@@ -212,6 +362,100 @@ export default function ServicesPage() {
                         <label className="input-label">Leírás</label>
                         <textarea className="input" rows={2} placeholder="Rövid leírás..." value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
                     </div>
+
+                    {/* GROUP SESSION TOGGLE */}
+                    <div style={{ marginTop: 20, padding: 20, background: 'var(--gray-50)', borderRadius: 14, border: '1px solid var(--gray-100)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: form.is_group_session ? 16 : 0 }}>
+                            <div>
+                                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--gray-800)' }}>👥 Csoportos óra</div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', marginTop: 2 }}>Több személy foglalhat ugyanarra az időpontra</div>
+                            </div>
+                            <button onClick={() => setForm(p => ({ ...p, is_group_session: !p.is_group_session }))}
+                                style={{
+                                    padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
+                                    background: form.is_group_session ? 'var(--primary-500)' : 'var(--gray-200)',
+                                    color: form.is_group_session ? 'white' : 'var(--gray-600)',
+                                    transition: 'all 0.2s',
+                                }}>
+                                {form.is_group_session ? '✅ Bekapcsolva' : '❌ Kikapcsolva'}
+                            </button>
+                        </div>
+
+                        {form.is_group_session && (
+                            <>
+                                {/* Capacity */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                                    <div className="input-group">
+                                        <label className="input-label">Max. létszám</label>
+                                        <input type="number" className="input" min="2" max="100" value={form.max_capacity}
+                                            onChange={e => setForm(p => ({ ...p, max_capacity: e.target.value }))} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label className="input-label">Létszám mutatása</label>
+                                        <button onClick={() => setForm(p => ({ ...p, show_capacity: !p.show_capacity }))}
+                                            style={{
+                                                padding: '10px 16px', borderRadius: 10, border: '1.5px solid var(--gray-200)',
+                                                background: form.show_capacity ? 'var(--success-light)' : 'white',
+                                                color: form.show_capacity ? 'var(--success)' : 'var(--gray-600)',
+                                                cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', width: '100%', textAlign: 'center',
+                                            }}>
+                                            {form.show_capacity ? '👁️ Látható az ügyfélnek' : '🙈 Rejtett'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Fixed schedule */}
+                                <div style={{ borderTop: '1px solid var(--gray-200)', paddingTop: 16 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                        <div>
+                                            <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>📅 Órarend</div>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>Add meg, mikor tartod a csoportos órákat</div>
+                                        </div>
+                                        <button onClick={() => setGroupSchedule(prev => [...prev, { day_of_week: 0, start_time: '09:00', end_time: '10:00' }])}
+                                            className="btn btn-secondary btn-sm" style={{ fontSize: '0.8rem' }}>+ Időpont</button>
+                                    </div>
+
+                                    {groupSchedule.length === 0 && (
+                                        <p style={{ color: 'var(--gray-400)', fontSize: '0.85rem', textAlign: 'center', padding: '12px 0' }}>
+                                            Adj hozzá legalább egy időpontot, amikor a csoportos óra elérhető.
+                                        </p>
+                                    )}
+
+                                    {groupSchedule.map((slot, idx) => (
+                                        <div key={idx} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+                                            <select className="input" value={slot.day_of_week}
+                                                onChange={e => {
+                                                    const updated = [...groupSchedule];
+                                                    updated[idx] = { ...updated[idx], day_of_week: Number(e.target.value) };
+                                                    setGroupSchedule(updated);
+                                                }}
+                                                style={{ flex: 1.2 }}>
+                                                {DAY_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+                                            </select>
+                                            <input type="time" className="input" value={slot.start_time}
+                                                onChange={e => {
+                                                    const updated = [...groupSchedule];
+                                                    updated[idx] = { ...updated[idx], start_time: e.target.value };
+                                                    setGroupSchedule(updated);
+                                                }}
+                                                style={{ flex: 1 }} />
+                                            <span style={{ color: 'var(--gray-400)' }}>–</span>
+                                            <input type="time" className="input" value={slot.end_time}
+                                                onChange={e => {
+                                                    const updated = [...groupSchedule];
+                                                    updated[idx] = { ...updated[idx], end_time: e.target.value };
+                                                    setGroupSchedule(updated);
+                                                }}
+                                                style={{ flex: 1 }} />
+                                            <button onClick={() => setGroupSchedule(prev => prev.filter((_, i) => i !== idx))}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', fontSize: '1.1rem', padding: 4 }}>🗑</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
                     <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
                         <button onClick={handleSave} className="btn btn-primary btn-sm">💾 Mentés</button>
                         <button onClick={() => { setIsAdding(false); setEditId(null); }} className="btn btn-secondary btn-sm">Mégse</button>
@@ -229,7 +473,7 @@ export default function ServicesPage() {
                     </p>
                     <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                         <button onClick={() => setShowCatalog(true)} className="btn btn-primary">📚 Szolgáltatás katalógus</button>
-                        <button onClick={() => { setIsAdding(true); setForm({ name: '', duration_minutes: 30, price: '', category: '', description: '' }); }} className="btn btn-secondary">+ Egyéni szolgáltatás</button>
+                        <button onClick={() => { setIsAdding(true); setGroupSchedule([]); setForm({ name: '', duration_minutes: 30, price: '', category: '', description: '', icon: '', is_group_session: false, max_capacity: 10, show_capacity: false }); }} className="btn btn-secondary">+ Egyéni szolgáltatás</button>
                     </div>
                 </div>
             )}
@@ -237,27 +481,38 @@ export default function ServicesPage() {
             {/* SERVICE LIST */}
             {services.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {services.map(svc => (
-                        <div key={svc.id} className={s.contentCard} style={{ opacity: svc.is_active !== false ? 1 : 0.5, padding: 20 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                                    <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--primary-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
-                                        {businessType === 'salon' ? '💇' : businessType === 'beauty' ? '💅' : businessType === 'fitness' ? '💪' : businessType === 'health' ? '🏥' : businessType === 'consulting' ? '💼' : '📋'}
+                    {services.map(svc => {
+                        const defaultIcon = businessType === 'salon' ? '💇' : businessType === 'beauty' ? '💅' : businessType === 'fitness' ? '💪' : businessType === 'health' ? '🏥' : businessType === 'consulting' ? '💼' : '📋';
+                        const svcIcon = svc.icon || defaultIcon;
+                        return (
+                            <div key={svc.id} className={s.contentCard} style={{ opacity: svc.is_active !== false ? 1 : 0.5, padding: 20 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                        <div style={{ width: 48, height: 48, borderRadius: 12, background: svc.is_group_session ? 'var(--accent-50, #fef3c7)' : 'var(--primary-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
+                                            {svcIcon}
+                                        </div>
+                                        <div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <span style={{ fontWeight: 700, color: 'var(--gray-800)' }}>{svc.name}</span>
+                                                {svc.is_group_session && (
+                                                    <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--accent-100, #fef3c7)', color: 'var(--accent-700, #92400e)' }}>
+                                                        👥 Csoportos • max {svc.max_capacity} fő
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{svc.category ? `${svc.category} • ` : ''}{svc.duration_minutes} perc{svc.description ? ` • ${svc.description}` : ''}</div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div style={{ fontWeight: 700, color: 'var(--gray-800)' }}>{svc.name}</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{svc.category ? `${svc.category} • ` : ''}{svc.duration_minutes} perc{svc.description ? ` • ${svc.description}` : ''}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--gray-800)' }}>{Number(svc.price).toLocaleString('hu-HU')} Ft</span>
+                                        <button onClick={() => handleToggle(svc.id)} className="btn btn-ghost btn-sm">{svc.is_active !== false ? '✅' : '❌'}</button>
+                                        <button onClick={() => handleEdit(svc)} className="btn btn-ghost btn-sm">✏️</button>
+                                        <button onClick={() => handleDelete(svc.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }}>🗑</button>
                                     </div>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--gray-800)' }}>{Number(svc.price).toLocaleString('hu-HU')} Ft</span>
-                                    <button onClick={() => handleToggle(svc.id)} className="btn btn-ghost btn-sm">{svc.is_active !== false ? '✅' : '❌'}</button>
-                                    <button onClick={() => handleEdit(svc)} className="btn btn-ghost btn-sm">✏️</button>
-                                    <button onClick={() => handleDelete(svc.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }}>🗑</button>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>

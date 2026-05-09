@@ -72,6 +72,7 @@ export default function BookingPage({ params }) {
     const [error, setError] = useState(null);
     const [monthOffset, setMonthOffset] = useState(0);
 
+    const [groupSchedules, setGroupSchedules] = useState({}); // { serviceId: [{day_of_week, start_time, end_time}] }
     const [selectedMember, setSelectedMember] = useState(null); // null = owner, or team_member id
     const hasTeam = teamMembers.length > 0;
     const [step, setStep] = useState(1);
@@ -147,6 +148,21 @@ export default function BookingPage({ params }) {
                     .order('sort_order').order('name');
                 setServices(svcs || []);
 
+                // 3b. Load group schedules for group services
+                const groupSvcs = (svcs || []).filter(s => s.is_group_session);
+                if (groupSvcs.length > 0) {
+                    const groupSvcIds = groupSvcs.map(s => s.id);
+                    const { data: gSchedules } = await supabase.from('group_schedule').select('*')
+                        .in('service_id', groupSvcIds).order('day_of_week');
+                    // Group by service_id
+                    const schedMap = {};
+                    (gSchedules || []).forEach(gs => {
+                        if (!schedMap[gs.service_id]) schedMap[gs.service_id] = [];
+                        schedMap[gs.service_id].push(gs);
+                    });
+                    setGroupSchedules(schedMap);
+                }
+
                 // 4. Load availability
                 const { data: avail } = await supabase.from('availability').select('*')
                     .eq('profile_id', profile.id);
@@ -155,7 +171,7 @@ export default function BookingPage({ params }) {
                 // 5. Load existing bookings (next 90 days)
                 const today = new Date().toISOString().split('T')[0];
                 const future = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
-                const { data: bookings } = await supabase.from('bookings').select('booking_date, start_time, end_time, team_member_id')
+                const { data: bookings } = await supabase.from('bookings').select('booking_date, start_time, end_time, team_member_id, service_id')
                     .eq('profile_id', profile.id).eq('status', 'confirmed')
                     .gte('booking_date', today).lte('booking_date', future);
 
@@ -220,11 +236,44 @@ export default function BookingPage({ params }) {
         if (!day || !svc) return [];
         const dateObj = new Date(viewYear, viewMonth, day);
         const dayOfWeek = (dateObj.getDay() + 6) % 7; // 0=Monday
-        const avail = filteredAvailability.find(a => a.day_of_week === dayOfWeek && a.is_active);
-        if (!avail) return [];
         const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
+        // Check if this is today
+        const todayObj = new Date();
+        const isToday = dateObj.getFullYear() === todayObj.getFullYear() && dateObj.getMonth() === todayObj.getMonth() && dateObj.getDate() === todayObj.getDate();
+        const nowMin = isToday ? todayObj.getHours() * 60 + todayObj.getMinutes() : 0;
+
+        // --- GROUP SESSION: use fixed schedule, check capacity ---
+        if (svc.is_group_session) {
+            const schedule = groupSchedules[svc.id] || [];
+            const daySlots = schedule.filter(s => s.day_of_week === dayOfWeek);
+            if (daySlots.length === 0) return [];
+
+            // Count existing bookings for this group service on this date per time slot
+            const dayGroupBookings = bookedSlots.filter(b =>
+                b.booking_date === dateStr && b.service_id === svc.id
+            );
+
+            return daySlots.map(slot => {
+                const time = (slot.start_time || '09:00').slice(0, 5);
+                const [h, m] = time.split(':').map(Number);
+                const slotMin = h * 60 + m;
+                // Skip past times for today
+                if (isToday && slotMin < nowMin) return null;
+                // Count bookings at this exact time
+                const count = dayGroupBookings.filter(b => (b.start_time || '').slice(0, 5) === time).length;
+                const remaining = (svc.max_capacity || 10) - count;
+                if (remaining <= 0) return null;
+                return { time, remaining, maxCapacity: svc.max_capacity || 10 };
+            }).filter(Boolean);
+        }
+
+        // --- REGULAR SERVICE: normal slot generation ---
+        const avail = filteredAvailability.find(a => a.day_of_week === dayOfWeek && a.is_active);
+        if (!avail) return [];
+
         // Build booked time ranges (start + end in minutes) for proper overlap detection
+        // For regular services, also block slots that overlap with group sessions on this day
         const dayBookings = filteredBookedSlots.filter(b => b.booking_date === dateStr).map(b => {
             const [bsh, bsm] = (b.start_time || '00:00').slice(0, 5).split(':').map(Number);
             const startMins = bsh * 60 + bsm;
@@ -233,18 +282,25 @@ export default function BookingPage({ params }) {
                 const [beh, bem] = b.end_time.slice(0, 5).split(':').map(Number);
                 endMins = beh * 60 + bem;
             } else {
-                // Fallback: if end_time is missing, assume at least 30 min duration
                 endMins = startMins + 30;
             }
             return { start: startMins, end: endMins };
         });
 
-        // Check if this is today
-        const todayObj = new Date();
-        const isToday = dateObj.getFullYear() === todayObj.getFullYear() && dateObj.getMonth() === todayObj.getMonth() && dateObj.getDate() === todayObj.getDate();
+        // Also block group session time slots for individual bookings
+        const groupBlockRanges = [];
+        Object.entries(groupSchedules).forEach(([svcId, schedule]) => {
+            schedule.filter(s => s.day_of_week === dayOfWeek).forEach(slot => {
+                const [sh, sm] = (slot.start_time || '09:00').slice(0, 5).split(':').map(Number);
+                const [eh, em] = (slot.end_time || '10:00').slice(0, 5).split(':').map(Number);
+                groupBlockRanges.push({ start: sh * 60 + sm, end: eh * 60 + em });
+            });
+        });
+
+        const allBlockedRanges = [...dayBookings, ...groupBlockRanges];
 
         return generateSlots(avail.start_time?.slice(0, 5) || '09:00', avail.end_time?.slice(0, 5) || '17:00',
-            avail.break_start?.slice(0, 5), avail.break_end?.slice(0, 5), svc.duration_minutes || 30, dayBookings, isToday);
+            avail.break_start?.slice(0, 5), avail.break_end?.slice(0, 5), svc.duration_minutes || 30, allBlockedRanges, isToday);
     };
 
     const isDayAvailable = (day) => {
@@ -253,6 +309,11 @@ export default function BookingPage({ params }) {
         const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         if (daysOff.some(d => dateStr >= d.start_date && dateStr <= d.end_date)) return false;
         const dow = (dateObj.getDay() + 6) % 7;
+        // For group sessions: check if there's a schedule entry for this day
+        if (svc?.is_group_session) {
+            const schedule = groupSchedules[svc.id] || [];
+            return schedule.some(s => s.day_of_week === dow);
+        }
         return filteredAvailability.some(a => a.day_of_week === dow && a.is_active);
     };
 
@@ -267,7 +328,7 @@ export default function BookingPage({ params }) {
         if (!isSupabaseConfigured || !supabase || !provider) return;
         const todayStr = new Date().toISOString().split('T')[0];
         const futureStr = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
-        const { data: bookings } = await supabase.from('bookings').select('booking_date, start_time, end_time, team_member_id')
+        const { data: bookings } = await supabase.from('bookings').select('booking_date, start_time, end_time, team_member_id, service_id')
             .eq('profile_id', provider.id).eq('status', 'confirmed')
             .gte('booking_date', todayStr).lte('booking_date', futureStr);
 
@@ -497,16 +558,25 @@ export default function BookingPage({ params }) {
                                     </div>
                                 )}
                                 <div className={s.serviceList}>
-                                    {filteredServices.map(svc => (
-                                        <div key={svc.id} className={`${s.serviceOption} ${selectedService === svc.id ? s.selected : ''}`}
-                                            onClick={() => { setSelectedService(svc.id); setStep(STEP_DATE); }}>
-                                            <div className={s.serviceDetails}>
-                                                <h4>{svc.name}</h4>
-                                                <p>{svc.category ? `${svc.category} • ` : ''}{svc.duration_minutes} perc</p>
+                                    {filteredServices.map(svc => {
+                                        const svcIcon = svc.icon || icon;
+                                        return (
+                                            <div key={svc.id} className={`${s.serviceOption} ${selectedService === svc.id ? s.selected : ''}`}
+                                                onClick={() => { setSelectedService(svc.id); setStep(STEP_DATE); }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                                    <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>{svcIcon}</span>
+                                                    <div className={s.serviceDetails}>
+                                                        <h4>{svc.name}</h4>
+                                                        <p>
+                                                            {svc.is_group_session && <span style={{ color: 'var(--accent-600, #d97706)', fontWeight: 600 }}>👥 Csoportos • </span>}
+                                                            {svc.category ? `${svc.category} • ` : ''}{svc.duration_minutes} perc
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className={s.servicePrice}>{svc.price?.toLocaleString('hu-HU')} Ft</span>
                                             </div>
-                                            <span className={s.servicePrice}>{svc.price?.toLocaleString('hu-HU')} Ft</span>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                                 <button onClick={() => selectedService && setStep(STEP_DATE)} className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 20 }}
                                     disabled={!selectedService}>
@@ -555,7 +625,24 @@ export default function BookingPage({ params }) {
                                         <h4 style={{ fontWeight: 600, marginBottom: 12, color: 'var(--gray-700)' }}>Elérhető időpontok</h4>
                                         {availableTimesForDay.length === 0 ? (
                                             <p style={{ color: 'var(--gray-400)', fontSize: '0.85rem' }}>Nincs elérhető időpont ezen a napon.</p>
+                                        ) : svc?.is_group_session ? (
+                                            /* Group session: show time + remaining spots */
+                                            <div className={s.timeGrid}>
+                                                {availableTimesForDay.map(slot => (
+                                                    <button key={slot.time} className={`${s.timeSlot} ${selectedTime === slot.time ? s.selected : ''}`}
+                                                        onClick={() => { setSelectedTime(slot.time); setBookingError(null); }}
+                                                        style={{ position: 'relative' }}>
+                                                        {slot.time}
+                                                        {svc.show_capacity && (
+                                                            <span style={{ display: 'block', fontSize: '0.65rem', color: slot.remaining <= 3 ? 'var(--error)' : 'var(--gray-400)', marginTop: 2 }}>
+                                                                {slot.remaining}/{slot.maxCapacity} hely
+                                                            </span>
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         ) : (
+                                            /* Regular service: simple time buttons */
                                             <div className={s.timeGrid}>
                                                 {availableTimesForDay.map(t => (
                                                     <button key={t} className={`${s.timeSlot} ${selectedTime === t ? s.selected : ''}`}
