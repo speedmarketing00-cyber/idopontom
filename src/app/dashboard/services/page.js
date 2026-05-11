@@ -200,6 +200,161 @@ export default function ServicesPage() {
         setServices(prev => prev.filter(s => s.id !== id));
     };
 
+    // Reusable form renderer — used both at top (new) and inline (edit)
+    const renderServiceForm = (title) => (
+        <div className={s.contentCard} style={{ marginBottom: 24, borderLeft: editId ? '4px solid var(--primary-500)' : undefined }}>
+            <h3 style={{ marginBottom: 16, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.1rem' }}>{title}</h3>
+
+            {/* ICON PICKER */}
+            <div className="input-group" style={{ marginBottom: 16 }}>
+                <label className="input-label">Ikon</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button onClick={() => setShowIconPicker(!showIconPicker)} style={{
+                        width: 52, height: 52, borderRadius: 14, border: '2px dashed var(--gray-200)',
+                        background: form.icon ? 'var(--primary-50)' : 'var(--gray-50)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1.5rem', cursor: 'pointer', transition: 'all 0.2s',
+                    }}>
+                        {form.icon || '➕'}
+                    </button>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>
+                        {form.icon ? SERVICE_ICONS.find(i => i.emoji === form.icon)?.label || 'Egyéni' : 'Válassz ikont a szolgáltatáshoz'}
+                    </span>
+                </div>
+                {showIconPicker && (
+                    <div style={{ marginTop: 10, padding: 16, background: 'var(--gray-50)', borderRadius: 14, border: '1px solid var(--gray-100)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px, 1fr))', gap: 8 }}>
+                            {SERVICE_ICONS.map(ic => (
+                                <button key={ic.emoji} onClick={() => { setForm(p => ({ ...p, icon: ic.emoji })); setShowIconPicker(false); }}
+                                    style={{
+                                        padding: '10px 4px', borderRadius: 10, border: form.icon === ic.emoji ? '2px solid var(--primary-500)' : '2px solid transparent',
+                                        background: form.icon === ic.emoji ? 'var(--primary-50)' : 'white',
+                                        cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
+                                    }}>
+                                    <div style={{ fontSize: '1.4rem' }}>{ic.emoji}</div>
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--gray-500)', marginTop: 2 }}>{ic.label}</div>
+                                </button>
+                            ))}
+                        </div>
+                        {form.icon && (
+                            <button onClick={() => { setForm(p => ({ ...p, icon: '' })); setShowIconPicker(false); }}
+                                style={{ marginTop: 10, fontSize: '0.8rem', color: 'var(--gray-500)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                ✕ Ikon eltávolítása
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="input-group"><label className="input-label">Név</label><input className="input" placeholder="pl. Hajvágás" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
+                <div className="input-group"><label className="input-label">Kategória</label><input className="input" placeholder="pl. Hajápolás" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} /></div>
+                <div className="input-group"><label className="input-label">Időtartam (perc)</label><input type="number" className="input" value={form.duration_minutes} onChange={e => setForm(p => ({ ...p, duration_minutes: e.target.value }))} /></div>
+                <div className="input-group"><label className="input-label">Ár (Ft)</label><input type="number" className="input" placeholder="5000" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} /></div>
+            </div>
+            <div className="input-group" style={{ marginTop: 16 }}>
+                <label className="input-label">Leírás</label>
+                <textarea className="input" rows={2} placeholder="Rövid leírás..." value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+            </div>
+
+            {/* GROUP SESSION TOGGLE */}
+            <div style={{ marginTop: 20, padding: 20, background: 'var(--gray-50)', borderRadius: 14, border: '1px solid var(--gray-100)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: form.is_group_session ? 16 : 0 }}>
+                    <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--gray-800)' }}>👥 Csoportos óra</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', marginTop: 2 }}>Több személy foglalhat ugyanarra az időpontra</div>
+                    </div>
+                    <button onClick={() => setForm(p => ({ ...p, is_group_session: !p.is_group_session }))}
+                        style={{
+                            padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
+                            background: form.is_group_session ? 'var(--primary-500)' : 'var(--gray-200)',
+                            color: form.is_group_session ? 'white' : 'var(--gray-600)',
+                            transition: 'all 0.2s',
+                        }}>
+                        {form.is_group_session ? '✅ Bekapcsolva' : '❌ Kikapcsolva'}
+                    </button>
+                </div>
+
+                {form.is_group_session && (
+                    <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                            <div className="input-group">
+                                <label className="input-label">Max. létszám</label>
+                                <input type="number" className="input" min="2" max="100" value={form.max_capacity}
+                                    onChange={e => setForm(p => ({ ...p, max_capacity: e.target.value }))} />
+                            </div>
+                            <div className="input-group">
+                                <label className="input-label">Létszám mutatása</label>
+                                <button onClick={() => setForm(p => ({ ...p, show_capacity: !p.show_capacity }))}
+                                    style={{
+                                        padding: '10px 16px', borderRadius: 10, border: '1.5px solid var(--gray-200)',
+                                        background: form.show_capacity ? 'var(--success-light)' : 'white',
+                                        color: form.show_capacity ? 'var(--success)' : 'var(--gray-600)',
+                                        cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', width: '100%', textAlign: 'center',
+                                    }}>
+                                    {form.show_capacity ? '👁️ Látható az ügyfélnek' : '🙈 Rejtett'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={{ borderTop: '1px solid var(--gray-200)', paddingTop: 16 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                <div>
+                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>📅 Órarend</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>Add meg, mikor tartod a csoportos órákat</div>
+                                </div>
+                                <button onClick={() => setGroupSchedule(prev => [...prev, { day_of_week: 0, start_time: '09:00', end_time: '10:00' }])}
+                                    className="btn btn-secondary btn-sm" style={{ fontSize: '0.8rem' }}>+ Időpont</button>
+                            </div>
+
+                            {groupSchedule.length === 0 && (
+                                <p style={{ color: 'var(--gray-400)', fontSize: '0.85rem', textAlign: 'center', padding: '12px 0' }}>
+                                    Adj hozzá legalább egy időpontot, amikor a csoportos óra elérhető.
+                                </p>
+                            )}
+
+                            {groupSchedule.map((slot, idx) => (
+                                <div key={idx} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+                                    <select className="input" value={slot.day_of_week}
+                                        onChange={e => {
+                                            const updated = [...groupSchedule];
+                                            updated[idx] = { ...updated[idx], day_of_week: Number(e.target.value) };
+                                            setGroupSchedule(updated);
+                                        }}
+                                        style={{ flex: 1.2 }}>
+                                        {DAY_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+                                    </select>
+                                    <input type="time" className="input" value={slot.start_time}
+                                        onChange={e => {
+                                            const updated = [...groupSchedule];
+                                            updated[idx] = { ...updated[idx], start_time: e.target.value };
+                                            setGroupSchedule(updated);
+                                        }}
+                                        style={{ flex: 1 }} />
+                                    <span style={{ color: 'var(--gray-400)' }}>–</span>
+                                    <input type="time" className="input" value={slot.end_time}
+                                        onChange={e => {
+                                            const updated = [...groupSchedule];
+                                            updated[idx] = { ...updated[idx], end_time: e.target.value };
+                                            setGroupSchedule(updated);
+                                        }}
+                                        style={{ flex: 1 }} />
+                                    <button onClick={() => setGroupSchedule(prev => prev.filter((_, i) => i !== idx))}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', fontSize: '1.1rem', padding: 4 }}>🗑</button>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                <button onClick={handleSave} className="btn btn-primary btn-sm">💾 Mentés</button>
+                <button onClick={() => { setIsAdding(false); setEditId(null); }} className="btn btn-secondary btn-sm">Mégse</button>
+            </div>
+        </div>
+    );
+
     return (
         <div>
             <div className={s.topBar}>
@@ -304,164 +459,8 @@ export default function ServicesPage() {
                 </div>
             )}
 
-            {/* ADD/EDIT FORM */}
-            {isAdding && (
-                <div className={s.contentCard} style={{ marginBottom: 24 }}>
-                    <h3 style={{ marginBottom: 16, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.1rem' }}>
-                        {editId ? '✏️ Szolgáltatás szerkesztése' : '➕ Egyéni szolgáltatás'}
-                    </h3>
-
-                    {/* ICON PICKER */}
-                    <div className="input-group" style={{ marginBottom: 16 }}>
-                        <label className="input-label">Ikon</label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <button onClick={() => setShowIconPicker(!showIconPicker)} style={{
-                                width: 52, height: 52, borderRadius: 14, border: '2px dashed var(--gray-200)',
-                                background: form.icon ? 'var(--primary-50)' : 'var(--gray-50)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: '1.5rem', cursor: 'pointer', transition: 'all 0.2s',
-                            }}>
-                                {form.icon || '➕'}
-                            </button>
-                            <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>
-                                {form.icon ? SERVICE_ICONS.find(i => i.emoji === form.icon)?.label || 'Egyéni' : 'Válassz ikont a szolgáltatáshoz'}
-                            </span>
-                        </div>
-                        {showIconPicker && (
-                            <div style={{ marginTop: 10, padding: 16, background: 'var(--gray-50)', borderRadius: 14, border: '1px solid var(--gray-100)' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px, 1fr))', gap: 8 }}>
-                                    {SERVICE_ICONS.map(ic => (
-                                        <button key={ic.emoji} onClick={() => { setForm(p => ({ ...p, icon: ic.emoji })); setShowIconPicker(false); }}
-                                            style={{
-                                                padding: '10px 4px', borderRadius: 10, border: form.icon === ic.emoji ? '2px solid var(--primary-500)' : '2px solid transparent',
-                                                background: form.icon === ic.emoji ? 'var(--primary-50)' : 'white',
-                                                cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
-                                            }}>
-                                            <div style={{ fontSize: '1.4rem' }}>{ic.emoji}</div>
-                                            <div style={{ fontSize: '0.65rem', color: 'var(--gray-500)', marginTop: 2 }}>{ic.label}</div>
-                                        </button>
-                                    ))}
-                                </div>
-                                {form.icon && (
-                                    <button onClick={() => { setForm(p => ({ ...p, icon: '' })); setShowIconPicker(false); }}
-                                        style={{ marginTop: 10, fontSize: '0.8rem', color: 'var(--gray-500)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                                        ✕ Ikon eltávolítása
-                                    </button>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                        <div className="input-group"><label className="input-label">Név</label><input className="input" placeholder="pl. Hajvágás" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
-                        <div className="input-group"><label className="input-label">Kategória</label><input className="input" placeholder="pl. Hajápolás" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} /></div>
-                        <div className="input-group"><label className="input-label">Időtartam (perc)</label><input type="number" className="input" value={form.duration_minutes} onChange={e => setForm(p => ({ ...p, duration_minutes: e.target.value }))} /></div>
-                        <div className="input-group"><label className="input-label">Ár (Ft)</label><input type="number" className="input" placeholder="5000" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} /></div>
-                    </div>
-                    <div className="input-group" style={{ marginTop: 16 }}>
-                        <label className="input-label">Leírás</label>
-                        <textarea className="input" rows={2} placeholder="Rövid leírás..." value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
-                    </div>
-
-                    {/* GROUP SESSION TOGGLE */}
-                    <div style={{ marginTop: 20, padding: 20, background: 'var(--gray-50)', borderRadius: 14, border: '1px solid var(--gray-100)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: form.is_group_session ? 16 : 0 }}>
-                            <div>
-                                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--gray-800)' }}>👥 Csoportos óra</div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', marginTop: 2 }}>Több személy foglalhat ugyanarra az időpontra</div>
-                            </div>
-                            <button onClick={() => setForm(p => ({ ...p, is_group_session: !p.is_group_session }))}
-                                style={{
-                                    padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
-                                    background: form.is_group_session ? 'var(--primary-500)' : 'var(--gray-200)',
-                                    color: form.is_group_session ? 'white' : 'var(--gray-600)',
-                                    transition: 'all 0.2s',
-                                }}>
-                                {form.is_group_session ? '✅ Bekapcsolva' : '❌ Kikapcsolva'}
-                            </button>
-                        </div>
-
-                        {form.is_group_session && (
-                            <>
-                                {/* Capacity */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-                                    <div className="input-group">
-                                        <label className="input-label">Max. létszám</label>
-                                        <input type="number" className="input" min="2" max="100" value={form.max_capacity}
-                                            onChange={e => setForm(p => ({ ...p, max_capacity: e.target.value }))} />
-                                    </div>
-                                    <div className="input-group">
-                                        <label className="input-label">Létszám mutatása</label>
-                                        <button onClick={() => setForm(p => ({ ...p, show_capacity: !p.show_capacity }))}
-                                            style={{
-                                                padding: '10px 16px', borderRadius: 10, border: '1.5px solid var(--gray-200)',
-                                                background: form.show_capacity ? 'var(--success-light)' : 'white',
-                                                color: form.show_capacity ? 'var(--success)' : 'var(--gray-600)',
-                                                cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', width: '100%', textAlign: 'center',
-                                            }}>
-                                            {form.show_capacity ? '👁️ Látható az ügyfélnek' : '🙈 Rejtett'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Fixed schedule */}
-                                <div style={{ borderTop: '1px solid var(--gray-200)', paddingTop: 16 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                        <div>
-                                            <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>📅 Órarend</div>
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>Add meg, mikor tartod a csoportos órákat</div>
-                                        </div>
-                                        <button onClick={() => setGroupSchedule(prev => [...prev, { day_of_week: 0, start_time: '09:00', end_time: '10:00' }])}
-                                            className="btn btn-secondary btn-sm" style={{ fontSize: '0.8rem' }}>+ Időpont</button>
-                                    </div>
-
-                                    {groupSchedule.length === 0 && (
-                                        <p style={{ color: 'var(--gray-400)', fontSize: '0.85rem', textAlign: 'center', padding: '12px 0' }}>
-                                            Adj hozzá legalább egy időpontot, amikor a csoportos óra elérhető.
-                                        </p>
-                                    )}
-
-                                    {groupSchedule.map((slot, idx) => (
-                                        <div key={idx} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
-                                            <select className="input" value={slot.day_of_week}
-                                                onChange={e => {
-                                                    const updated = [...groupSchedule];
-                                                    updated[idx] = { ...updated[idx], day_of_week: Number(e.target.value) };
-                                                    setGroupSchedule(updated);
-                                                }}
-                                                style={{ flex: 1.2 }}>
-                                                {DAY_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
-                                            </select>
-                                            <input type="time" className="input" value={slot.start_time}
-                                                onChange={e => {
-                                                    const updated = [...groupSchedule];
-                                                    updated[idx] = { ...updated[idx], start_time: e.target.value };
-                                                    setGroupSchedule(updated);
-                                                }}
-                                                style={{ flex: 1 }} />
-                                            <span style={{ color: 'var(--gray-400)' }}>–</span>
-                                            <input type="time" className="input" value={slot.end_time}
-                                                onChange={e => {
-                                                    const updated = [...groupSchedule];
-                                                    updated[idx] = { ...updated[idx], end_time: e.target.value };
-                                                    setGroupSchedule(updated);
-                                                }}
-                                                style={{ flex: 1 }} />
-                                            <button onClick={() => setGroupSchedule(prev => prev.filter((_, i) => i !== idx))}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', fontSize: '1.1rem', padding: 4 }}>🗑</button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
-                        <button onClick={handleSave} className="btn btn-primary btn-sm">💾 Mentés</button>
-                        <button onClick={() => { setIsAdding(false); setEditId(null); }} className="btn btn-secondary btn-sm">Mégse</button>
-                    </div>
-                </div>
-            )}
+            {/* ADD NEW FORM (top position — only for new services, not edits) */}
+            {isAdding && !editId && renderServiceForm('➕ Egyéni szolgáltatás')}
 
             {/* EMPTY STATE */}
             {services.length === 0 && !showCatalog && !isAdding && (
@@ -484,32 +483,37 @@ export default function ServicesPage() {
                     {services.map(svc => {
                         const defaultIcon = businessType === 'salon' ? '💇' : businessType === 'beauty' ? '💅' : businessType === 'fitness' ? '💪' : businessType === 'health' ? '🏥' : businessType === 'consulting' ? '💼' : '📋';
                         const svcIcon = svc.icon || defaultIcon;
+                        const isEditing = editId === svc.id;
                         return (
-                            <div key={svc.id} className={s.contentCard} style={{ opacity: svc.is_active !== false ? 1 : 0.5, padding: 20 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                                        <div style={{ width: 48, height: 48, borderRadius: 12, background: svc.is_group_session ? 'var(--accent-50, #fef3c7)' : 'var(--primary-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
-                                            {svcIcon}
-                                        </div>
-                                        <div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <span style={{ fontWeight: 700, color: 'var(--gray-800)' }}>{svc.name}</span>
-                                                {svc.is_group_session && (
-                                                    <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--accent-100, #fef3c7)', color: 'var(--accent-700, #92400e)' }}>
-                                                        👥 Csoportos • max {svc.max_capacity} fő
-                                                    </span>
-                                                )}
+                            <div key={svc.id}>
+                                <div className={s.contentCard} style={{ opacity: svc.is_active !== false ? 1 : 0.5, padding: 20 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                            <div style={{ width: 48, height: 48, borderRadius: 12, background: svc.is_group_session ? 'var(--accent-50, #fef3c7)' : 'var(--primary-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
+                                                {svcIcon}
                                             </div>
-                                            <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{svc.category ? `${svc.category} • ` : ''}{svc.duration_minutes} perc{svc.description ? ` • ${svc.description}` : ''}</div>
+                                            <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <span style={{ fontWeight: 700, color: 'var(--gray-800)' }}>{svc.name}</span>
+                                                    {svc.is_group_session && (
+                                                        <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--accent-100, #fef3c7)', color: 'var(--accent-700, #92400e)' }}>
+                                                            👥 Csoportos • max {svc.max_capacity} fő
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{svc.category ? `${svc.category} • ` : ''}{svc.duration_minutes} perc{svc.description ? ` • ${svc.description}` : ''}</div>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--gray-800)' }}>{Number(svc.price).toLocaleString('hu-HU')} Ft</span>
-                                        <button onClick={() => handleToggle(svc.id)} className="btn btn-ghost btn-sm">{svc.is_active !== false ? '✅' : '❌'}</button>
-                                        <button onClick={() => handleEdit(svc)} className="btn btn-ghost btn-sm">✏️</button>
-                                        <button onClick={() => handleDelete(svc.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }}>🗑</button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--gray-800)' }}>{Number(svc.price).toLocaleString('hu-HU')} Ft</span>
+                                            <button onClick={() => handleToggle(svc.id)} className="btn btn-ghost btn-sm">{svc.is_active !== false ? '✅' : '❌'}</button>
+                                            <button onClick={() => isEditing ? setEditId(null) : handleEdit(svc)} className="btn btn-ghost btn-sm" style={isEditing ? { background: 'var(--primary-50)', borderRadius: 8 } : {}}>✏️</button>
+                                            <button onClick={() => handleDelete(svc.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }}>🗑</button>
+                                        </div>
                                     </div>
                                 </div>
+                                {/* Inline edit form — appears right below this service */}
+                                {isEditing && renderServiceForm('✏️ Szolgáltatás szerkesztése')}
                             </div>
                         );
                     })}

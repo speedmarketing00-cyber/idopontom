@@ -155,6 +155,7 @@ export async function POST(request) {
         end_time: endTime,
         price: price,
         status: 'confirmed',
+        is_group_booking: isGroupSession,
       });
 
       if (insertError) {
