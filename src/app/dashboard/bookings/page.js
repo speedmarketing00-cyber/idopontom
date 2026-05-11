@@ -150,6 +150,171 @@ function BookingModal({ booking, onClose, onStatusChange, onNotesSaved }) {
     );
 }
 
+// ─── Manual Booking Modal ──────────────────────────────────────────────────
+function ManualBookingModal({ onClose, onSaved, profileSlug, services, teamMembers }) {
+    const [form, setForm] = useState({
+        clientName: '', clientEmail: '', clientPhone: '', serviceId: '',
+        date: new Date().toISOString().slice(0, 10), time: '09:00', teamMemberId: '', notes: '',
+    });
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+
+    const selectedService = services.find(sv => sv.id === form.serviceId);
+
+    const handleSave = async () => {
+        setError('');
+        if (!form.clientName) { setError('Add meg az ügyfél nevét!'); return; }
+        if (!form.serviceId) { setError('Válassz szolgáltatást!'); return; }
+        if (!form.date || !form.time) { setError('Add meg a dátumot és időpontot!'); return; }
+        setSaving(true);
+        try {
+            const res = await fetch('/api/booking', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clientName: form.clientName,
+                    clientEmail: form.clientEmail || '',
+                    clientPhone: form.clientPhone || '',
+                    notes: form.notes || '',
+                    serviceName: selectedService?.name || '',
+                    serviceId: form.serviceId,
+                    duration: selectedService?.duration_minutes || 30,
+                    price: selectedService?.price || 0,
+                    date: form.date,
+                    time: form.time,
+                    slug: profileSlug,
+                    teamMemberId: form.teamMemberId || null,
+                }),
+            });
+            const result = await res.json();
+            if (!res.ok) {
+                setError(result.error || 'Hiba történt a foglalás mentésekor.');
+                setSaving(false);
+                return;
+            }
+            onSaved();
+            onClose();
+        } catch (e) {
+            setError('Hiba történt: ' + e.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+            onClick={onClose}
+        >
+            <div
+                style={{ background: 'white', borderRadius: 20, padding: 32, maxWidth: 520, width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+                onClick={e => e.stopPropagation()}
+            >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.2rem', margin: 0 }}>
+                        ✏️ Új manuális foglalás
+                    </h2>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: 'var(--gray-400)' }}>✕</button>
+                </div>
+
+                {error && <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: '0.85rem', color: '#991b1b' }}>{error}</div>}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {/* Ügyfél adatok */}
+                    <div className="input-group">
+                        <label className="input-label">Ügyfél neve *</label>
+                        <input type="text" className="input" placeholder="Kiss Anna" value={form.clientName}
+                            onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))} />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <div className="input-group">
+                            <label className="input-label">E-mail</label>
+                            <input type="email" className="input" placeholder="pelda@email.hu" value={form.clientEmail}
+                                onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))} />
+                        </div>
+                        <div className="input-group">
+                            <label className="input-label">Telefonszám</label>
+                            <input type="tel" className="input" placeholder="+36 30 123 4567" value={form.clientPhone}
+                                onChange={e => setForm(p => ({ ...p, clientPhone: e.target.value }))} />
+                        </div>
+                    </div>
+
+                    {/* Szolgáltatás */}
+                    <div className="input-group">
+                        <label className="input-label">Szolgáltatás *</label>
+                        <select className="input" value={form.serviceId} onChange={e => setForm(p => ({ ...p, serviceId: e.target.value }))}>
+                            <option value="">Válassz szolgáltatást...</option>
+                            {services.map(sv => (
+                                <option key={sv.id} value={sv.id}>
+                                    {sv.icon || ''} {sv.name} – {sv.duration_minutes} perc – {Number(sv.price || 0).toLocaleString('hu-HU')} Ft
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Dátum + idő */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <div className="input-group">
+                            <label className="input-label">Dátum *</label>
+                            <input type="date" className="input" value={form.date}
+                                onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
+                        </div>
+                        <div className="input-group">
+                            <label className="input-label">Időpont *</label>
+                            <input type="time" className="input" value={form.time}
+                                onChange={e => setForm(p => ({ ...p, time: e.target.value }))} />
+                        </div>
+                    </div>
+
+                    {/* Team member (ha van) */}
+                    {teamMembers && teamMembers.length > 0 && (
+                        <div className="input-group">
+                            <label className="input-label">Dolgozó</label>
+                            <select className="input" value={form.teamMemberId} onChange={e => setForm(p => ({ ...p, teamMemberId: e.target.value }))}>
+                                <option value="">Saját (tulajdonos)</option>
+                                {teamMembers.map(m => (
+                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* Megjegyzés */}
+                    <div className="input-group">
+                        <label className="input-label">Megjegyzés <span style={{ color: 'var(--gray-400)', fontWeight: 400, fontSize: '0.8rem' }}>(opcionális)</span></label>
+                        <textarea className="input" rows={2} placeholder="Belső megjegyzés..." value={form.notes}
+                            onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} style={{ resize: 'vertical' }} />
+                    </div>
+
+                    {/* Összesítő */}
+                    {selectedService && (
+                        <div style={{ background: 'var(--primary-50)', borderRadius: 12, padding: 16, fontSize: '0.85rem' }}>
+                            <strong>{selectedService.icon || '📋'} {selectedService.name}</strong>
+                            <span style={{ color: 'var(--gray-600)', marginLeft: 8 }}>
+                                {selectedService.duration_minutes} perc • {Number(selectedService.price || 0).toLocaleString('hu-HU')} Ft
+                            </span>
+                            <div style={{ marginTop: 4, color: 'var(--gray-500)' }}>
+                                {form.date} – {form.time}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+                    <button onClick={handleSave} disabled={saving} className="btn btn-primary" style={{ flex: 1 }}>
+                        {saving ? '⏳ Mentés...' : '✅ Foglalás mentése'}
+                    </button>
+                    <button onClick={onClose} className="btn btn-secondary" style={{ flex: 1 }}>Mégse</button>
+                </div>
+
+                <p style={{ fontSize: '0.75rem', color: 'var(--gray-400)', textAlign: 'center', marginTop: 12 }}>
+                    Ha megadod az ügyfél e-mail címét, automatikusan kap megerősítő emailt.
+                </p>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────────
 export default function BookingsPage() {
     const { profile, teamMemberInfo } = useAuth();
@@ -158,6 +323,8 @@ export default function BookingsPage() {
     const [teamMembers, setTeamMembers] = useState([]);
     const [memberFilter, setMemberFilter] = useState('all');
     const [selectedBooking, setSelectedBooking] = useState(null);
+    const [showManualBooking, setShowManualBooking] = useState(false);
+    const [services, setServices] = useState([]);
 
     // P3: search + date filter
     const [search, setSearch] = useState('');
@@ -168,7 +335,7 @@ export default function BookingsPage() {
     const tier = teamMemberInfo ? 'pro' : (profile?.subscription_tier || 'free');
     const isProfi = tier === 'pro';
 
-    useEffect(() => {
+    const loadBookings = () => {
         if (isSupabaseConfigured && effectiveProfileId) {
             getBookings(effectiveProfileId).then(data => {
                 if (teamMemberInfo) {
@@ -177,6 +344,15 @@ export default function BookingsPage() {
                     setBookings(data);
                 }
             });
+        }
+    };
+
+    useEffect(() => {
+        if (isSupabaseConfigured && effectiveProfileId) {
+            loadBookings();
+            // Load services for manual booking form
+            supabase.from('services').select('*').eq('profile_id', effectiveProfileId).eq('is_active', true)
+                .order('sort_order').then(({ data }) => setServices(data || []));
             if (isProfi && !teamMemberInfo) {
                 supabase.from('team_members').select('*').eq('owner_profile_id', effectiveProfileId)
                     .order('created_at').then(({ data }) => setTeamMembers(data || []));
@@ -224,6 +400,8 @@ export default function BookingsPage() {
         cancelled: { label: '✗ Lemondva',    cls: '' }
     };
 
+    const profileSlug = teamMemberInfo?.ownerProfile?.slug || profile?.slug;
+
     return (
         <div>
             {selectedBooking && (
@@ -235,10 +413,25 @@ export default function BookingsPage() {
                 />
             )}
 
+            {showManualBooking && (
+                <ManualBookingModal
+                    onClose={() => setShowManualBooking(false)}
+                    onSaved={loadBookings}
+                    profileSlug={profileSlug}
+                    services={services}
+                    teamMembers={isProfi ? teamMembers : []}
+                />
+            )}
+
             <div className={s.topBar}>
                 <div className={s.topBarLeft}>
                     <h1>Foglalások 📋</h1>
                     <p>{bookings.length} foglalás összesen</p>
+                </div>
+                <div className={s.topBarRight}>
+                    <button onClick={() => setShowManualBooking(true)} className="btn btn-primary btn-sm">
+                        ✏️ Új foglalás
+                    </button>
                 </div>
             </div>
 
