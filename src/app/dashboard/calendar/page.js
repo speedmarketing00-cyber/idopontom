@@ -295,20 +295,26 @@ export default function CalendarPage() {
                                 {weekDays.map((_, di) => {
                                     const weekDate = getWeekDateStr(di);
                                     const dayEvents = events.filter(e => e.raw?.booking_date === weekDate && Math.floor(e.startH) === h);
+                                    const total = dayEvents.length;
                                     return (
-                                        <div key={di} style={{ borderLeft: '1px solid var(--gray-100)', borderBottom: '1px solid var(--gray-50)', padding: 2, height: 64, position: 'relative' }}>
-                                            {dayEvents.map((ev, ei) => (
-                                                <div key={ei} onClick={() => ev.raw && setSelectedBooking(ev.raw)} style={{
-                                                    position: 'absolute', top: (ev.startH - h) * 64,
-                                                    left: 2, right: 2, height: Math.max(ev.dur * 64 - 2, 20),
-                                                    background: ev.color || 'var(--primary-200)', borderRadius: 6, padding: '4px 8px',
-                                                    fontSize: '0.75rem', overflow: 'hidden', cursor: 'pointer',
-                                                    borderLeft: '3px solid var(--primary-500)',
-                                                }}>
-                                                    <strong>{ev.name}</strong>
-                                                    <div style={{ fontSize: '0.7rem', color: 'var(--gray-600)' }}>{ev.service}</div>
-                                                </div>
-                                            ))}
+                                        <div key={di} style={{ borderLeft: '1px solid var(--gray-100)', borderBottom: '1px solid var(--gray-50)', padding: 0, height: 64, position: 'relative' }}>
+                                            {dayEvents.map((ev, ei) => {
+                                                const widthPct = total > 1 ? (100 / total) : 100;
+                                                const leftPct = total > 1 ? (ei * widthPct) : 0;
+                                                return (
+                                                    <div key={ei} onClick={() => ev.raw && setSelectedBooking(ev.raw)} style={{
+                                                        position: 'absolute', top: (ev.startH - h) * 64,
+                                                        left: `calc(${leftPct}% + 1px)`, width: `calc(${widthPct}% - 2px)`,
+                                                        height: Math.max(ev.dur * 64 - 2, 20),
+                                                        background: ev.color || 'var(--primary-200)', borderRadius: 6, padding: '4px 6px',
+                                                        fontSize: total > 2 ? '0.65rem' : '0.75rem', overflow: 'hidden', cursor: 'pointer',
+                                                        borderLeft: '3px solid var(--primary-500)',
+                                                    }}>
+                                                        <strong>{ev.name}</strong>
+                                                        {total <= 2 && <div style={{ fontSize: '0.7rem', color: 'var(--gray-600)' }}>{ev.service}</div>}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     );
                                 })}

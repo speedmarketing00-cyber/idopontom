@@ -38,7 +38,7 @@ const PLANS = [
 ];
 
 export default function RegisterPage() {
-    const [form, setForm] = useState({ name: '', email: '', password: '', businessName: '', businessType: 'salon' });
+    const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', businessName: '', businessType: 'salon' });
     const [selectedPlan, setSelectedPlan] = useState('free');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -85,18 +85,46 @@ export default function RegisterPage() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        if (!form.name || !form.email || !form.password) { setError('Kérlek töltsd ki az összes kötelező mezőt!'); return; }
+        if (!form.name || !form.email || !form.password || !form.phone) { setError('Kérlek töltsd ki az összes kötelező mezőt!'); return; }
         if (form.password.length < 6) { setError('A jelszónak legalább 6 karakter hosszúnak kell lennie!'); return; }
         setLoading(true);
         try {
             await signUp(form.email, form.password, {
                 name: form.name,
+                phone: form.phone,
                 business_name: form.businessName || form.name,
                 business_type: form.businessType,
             });
 
             // 🎯 Fire Meta registration event (browser pixel + server CAPI)
             fireRegistrationEvent(form.email);
+
+            // 📧 Registration emails (welcome + admin notification)
+            try {
+                await fetch('/api/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'registration_welcome',
+                        data: { userName: form.name, userEmail: form.email },
+                    }),
+                });
+                await fetch('/api/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'registration_admin_notify',
+                        data: {
+                            userName: form.name,
+                            userEmail: form.email,
+                            userPhone: form.phone,
+                            businessName: form.businessName || form.name,
+                            businessType: form.businessType,
+                            method: 'email',
+                        },
+                    }),
+                });
+            } catch (e) { console.warn('Registration email error:', e); }
 
             if (selectedPlan !== 'free') {
                 router.push(`/dashboard/settings?startPlan=${selectedPlan}`);
@@ -190,9 +218,15 @@ export default function RegisterPage() {
                             <input type="email" className="input" placeholder="pelda@email.hu" value={form.email} onChange={handleChange('email')} required />
                         </div>
                     </div>
-                    <div className="input-group">
-                        <label className="input-label">Vállalkozás neve <span style={{ color: 'var(--gray-400)', fontWeight: 400, fontSize: '0.8rem' }}>(opcionális)</span></label>
-                        <input type="text" className="input" placeholder="Szépség Szalon Kati" value={form.businessName} onChange={handleChange('businessName')} />
+                    <div className={s.authRow}>
+                        <div className="input-group">
+                            <label className="input-label">Telefonszám *</label>
+                            <input type="tel" className="input" placeholder="+36 30 123 4567" value={form.phone} onChange={handleChange('phone')} required />
+                        </div>
+                        <div className="input-group">
+                            <label className="input-label">Vállalkozás neve <span style={{ color: 'var(--gray-400)', fontWeight: 400, fontSize: '0.8rem' }}>(opcionális)</span></label>
+                            <input type="text" className="input" placeholder="Szépség Szalon Kati" value={form.businessName} onChange={handleChange('businessName')} />
+                        </div>
                     </div>
                     <div className="input-group">
                         <label className="input-label">Szakterület</label>

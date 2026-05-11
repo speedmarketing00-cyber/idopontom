@@ -187,10 +187,26 @@ export function AuthProvider({ children }) {
                 }
             });
             if (error) throw error;
+
+            // Save phone + business_type to profile (trigger only saves name, business_name, slug)
+            if (data?.user?.id && (metadata.phone || metadata.business_type)) {
+                try {
+                    const updates = {};
+                    if (metadata.phone) updates.phone = metadata.phone;
+                    if (metadata.business_type) updates.business_type = metadata.business_type;
+                    await supabase
+                        .from('profiles')
+                        .update(updates)
+                        .eq('user_id', data.user.id);
+                } catch (e) {
+                    console.warn('Profile phone/type update after signup:', e.message);
+                }
+            }
+
             return data;
         } else {
             const slug = metadata.business_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-            const demoUser = { email, name: metadata.name, businessName: metadata.business_name, businessType: metadata.business_type, slug, tier: 'free' };
+            const demoUser = { email, name: metadata.name, businessName: metadata.business_name, businessType: metadata.business_type, phone: metadata.phone, slug, tier: 'free' };
             localStorage.setItem('idopontom_user', JSON.stringify(demoUser));
             setUser({ id: 'demo', email });
             setProfile(demoUser);
