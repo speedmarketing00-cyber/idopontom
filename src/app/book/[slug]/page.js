@@ -634,8 +634,8 @@ export default function BookingPage({ params }) {
                                                         style={{ position: 'relative' }}>
                                                         {slot.time}
                                                         {svc.show_capacity && (
-                                                            <span style={{ display: 'block', fontSize: '0.65rem', color: slot.remaining <= 3 ? 'var(--error)' : 'var(--gray-400)', marginTop: 2 }}>
-                                                                {slot.remaining}/{slot.maxCapacity} hely
+                                                            <span style={{ display: 'block', fontSize: '0.65rem', color: slot.remaining <= 3 ? 'var(--error)' : 'var(--success, #16a34a)', marginTop: 2 }}>
+                                                                {slot.remaining} szabad hely
                                                             </span>
                                                         )}
                                                     </button>
