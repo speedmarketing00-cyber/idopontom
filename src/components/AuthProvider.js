@@ -116,18 +116,13 @@ export function AuthProvider({ children }) {
         }
     };
 
-    // Google OAuth (with Calendar read scope for sync)
+    // Google OAuth — basic sign-in (no sensitive scopes → no "unverified app" warning)
     const signInWithGoogle = async () => {
         if (isSupabaseConfigured && supabase) {
             const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
                     redirectTo: `${window.location.origin}/auth/callback`,
-                    scopes: 'https://www.googleapis.com/auth/calendar.readonly',
-                    queryParams: {
-                        access_type: 'offline',
-                        prompt: 'consent',
-                    },
                 }
             });
             if (error) throw error;
@@ -138,6 +133,26 @@ export function AuthProvider({ children }) {
             setUser({ id: 'demo', email: demoUser.email });
             setProfile(demoUser);
             return demoUser;
+        }
+    };
+
+    // Separate Google Calendar connection — requests calendar.readonly + offline access
+    // Only called from settings when user explicitly wants to connect their calendar
+    const connectGoogleCalendar = async () => {
+        if (isSupabaseConfigured && supabase) {
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: `${window.location.origin}/auth/callback?calendar=1`,
+                    scopes: 'https://www.googleapis.com/auth/calendar.readonly',
+                    queryParams: {
+                        access_type: 'offline',
+                        prompt: 'consent',
+                    },
+                }
+            });
+            if (error) throw error;
+            return data;
         }
     };
 
@@ -228,7 +243,7 @@ export function AuthProvider({ children }) {
     return (
         <AuthContext.Provider value={{
             user, profile, loading, signIn, signUp, signOut,
-            signInWithGoogle, updateProfile,
+            signInWithGoogle, connectGoogleCalendar, updateProfile,
             getGoogleAccessToken, isSupabaseConfigured,
             teamMemberInfo,
         }}>
