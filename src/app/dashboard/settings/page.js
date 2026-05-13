@@ -29,6 +29,9 @@ export default function SettingsPage() {
     const [feedbackMsg, setFeedbackMsg] = useState('');
     const [feedbackSending, setFeedbackSending] = useState(false);
     const [feedbackSent, setFeedbackSent] = useState(false);
+    const [pwResetSent, setPwResetSent] = useState(false);
+    const [pwResetLoading, setPwResetLoading] = useState(false);
+    const [pwResetError, setPwResetError] = useState('');
 
     // Sync form and avatar when profile loads (profile arrives async)
     useEffect(() => {
@@ -176,6 +179,24 @@ export default function SettingsPage() {
             console.error('Feedback error:', e);
         }
         setFeedbackSending(false);
+    };
+
+    const handlePasswordReset = async () => {
+        const email = user?.email;
+        if (!email) { setPwResetError('Nincs email cím a fiókodhoz.'); return; }
+        setPwResetLoading(true);
+        setPwResetError('');
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/auth/reset-password`,
+            });
+            if (error) throw error;
+            setPwResetSent(true);
+        } catch (err) {
+            setPwResetError('Hiba: ' + (err.message || 'Nem sikerült elküldeni.'));
+        } finally {
+            setPwResetLoading(false);
+        }
     };
 
     const handleManageSubscription = async () => {
@@ -391,6 +412,33 @@ export default function SettingsPage() {
                             </button>
                         </div>
                     </div>
+                )}
+            </div>
+
+            {/* PASSWORD CHANGE */}
+            <div className={s.contentCard} style={{ padding: 32, marginBottom: 24 }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 8 }}>🔒 Jelszó változtatás</h3>
+                <p style={{ fontSize: '0.9rem', color: 'var(--gray-500)', marginBottom: 16, lineHeight: 1.6 }}>
+                    Küldünk egy linket az e-mail címedre, amivel biztonságosan beállíthatsz új jelszót.
+                    {user?.app_metadata?.provider === 'google' && (
+                        <span style={{ display: 'block', marginTop: 6, color: 'var(--primary-600)' }}>
+                            💡 Google-lel regisztráltál – ha beállítasz jelszót, utána e-mail + jelszóval is be tudsz majd lépni.
+                        </span>
+                    )}
+                </p>
+                {pwResetError && (
+                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: '0.85rem', color: '#991b1b' }}>
+                        {pwResetError}
+                    </div>
+                )}
+                {pwResetSent ? (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '14px 18px', fontSize: '0.9rem', color: '#166534' }}>
+                        ✅ Elküldtük a jelszó-visszaállító linket a <strong>{user?.email}</strong> címre! Nézd meg az email fiókodat (spam mappát is).
+                    </div>
+                ) : (
+                    <button onClick={handlePasswordReset} disabled={pwResetLoading} className="btn btn-secondary btn-sm">
+                        {pwResetLoading ? '⏳ Küldés...' : '📧 Jelszó-visszaállító link küldése'}
+                    </button>
                 )}
             </div>
 
