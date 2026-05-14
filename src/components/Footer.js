@@ -28,6 +28,7 @@ export default function Footer() {
                             <a href="#funkcio" className={styles.footerLink}>Funkciók</a>
                             <a href="#arak" className={styles.footerLink}>Árazás</a>
                             <a href="#hogyan" className={styles.footerLink}>Hogyan működik?</a>
+                            <Link href="/blog" className={styles.footerLink}>Blog</Link>
                             <Link href="/auth/register" className={styles.footerLink}>Regisztráció</Link>
                         </div>
 
