@@ -71,14 +71,7 @@ export default async function BlogPage() {
                                     href={`/blog/${post.slug}`}
                                     style={{ textDecoration: 'none', color: 'inherit' }}
                                 >
-                                    <article style={{
-                                        background: 'white', borderRadius: 16, overflow: 'hidden',
-                                        boxShadow: '0 2px 16px rgba(0,0,0,0.06)', transition: 'transform 0.2s, box-shadow 0.2s',
-                                        cursor: 'pointer',
-                                    }}
-                                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.1)'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 16px rgba(0,0,0,0.06)'; }}
-                                    >
+                                    <article className="blog-card">
                                         {post.cover_image && (
                                             <div style={{ height: 180, background: `url(${post.cover_image}) center/cover`, borderBottom: '1px solid #f3f4f6' }} />
                                         )}
@@ -131,6 +124,22 @@ export default async function BlogPage() {
                     Ingyenes regisztráció →
                 </Link>
             </div>
+
+            {/* Blog card hover styles (Server Component compatible - no JS event handlers) */}
+            <style>{`
+                .blog-card {
+                    background: white;
+                    border-radius: 16px;
+                    overflow: hidden;
+                    box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+                    transition: transform 0.2s, box-shadow 0.2s;
+                    cursor: pointer;
+                }
+                .blog-card:hover {
+                    transform: translateY(-4px);
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+                }
+            `}</style>
         </div>
     );
 }
