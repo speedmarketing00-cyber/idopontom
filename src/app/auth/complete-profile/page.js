@@ -17,6 +17,8 @@ export default function CompleteProfilePage() {
         setError('');
         if (!form.businessName) { setError('Add meg a vállalkozásod nevét!'); return; }
         if (!form.phone) { setError('Add meg a telefonszámodat!'); return; }
+        const phoneDigits = form.phone.replace(/\D/g, '');
+        if (phoneDigits.length < 9) { setError('A telefonszámnak legalább 9 számjegyből kell állnia!'); return; }
         setLoading(true);
         try {
             const slug = form.businessName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now().toString(36).slice(-4);
@@ -84,7 +86,8 @@ export default function CompleteProfilePage() {
                     <div className="input-group">
                         <label className="input-label">Telefonszám *</label>
                         <input type="tel" className="input" placeholder="+36 30 123 4567" value={form.phone}
-                            onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} required />
+                            onChange={e => { const v = e.target.value.replace(/[^\d+\s()-]/g, ''); setForm(p => ({ ...p, phone: v })); }}
+                            required />
                     </div>
                     <div className="input-group">
                         <label className="input-label">Vállalkozás neve *</label>

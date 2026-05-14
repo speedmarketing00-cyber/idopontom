@@ -86,6 +86,8 @@ export default function RegisterPage() {
         e.preventDefault();
         setError('');
         if (!form.name || !form.email || !form.password || !form.phone) { setError('Kérlek töltsd ki az összes kötelező mezőt!'); return; }
+        const phoneDigits = form.phone.replace(/\D/g, '');
+        if (phoneDigits.length < 9) { setError('A telefonszámnak legalább 9 számjegyből kell állnia!'); return; }
         if (form.password.length < 6) { setError('A jelszónak legalább 6 karakter hosszúnak kell lennie!'); return; }
         setLoading(true);
         try {
@@ -221,7 +223,9 @@ export default function RegisterPage() {
                     <div className={s.authRow}>
                         <div className="input-group">
                             <label className="input-label">Telefonszám *</label>
-                            <input type="tel" className="input" placeholder="+36 30 123 4567" value={form.phone} onChange={handleChange('phone')} required />
+                            <input type="tel" className="input" placeholder="+36 30 123 4567" value={form.phone}
+                                onChange={e => { const v = e.target.value.replace(/[^\d+\s()-]/g, ''); setForm(p => ({ ...p, phone: v })); }}
+                                required />
                         </div>
                         <div className="input-group">
                             <label className="input-label">Vállalkozás neve <span style={{ color: 'var(--gray-400)', fontWeight: 400, fontSize: '0.8rem' }}>(opcionális)</span></label>
