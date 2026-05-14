@@ -1,8 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
+import { revalidatePath } from 'next/cache';
 
 const supabaseAdmin = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
     ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
     : null;
+
+// Revalidate blog pages so changes appear immediately
+function revalidateBlog(slug) {
+    try {
+        revalidatePath('/blog');
+        if (slug) revalidatePath(`/blog/${slug}`);
+    } catch (e) { /* ignore revalidation errors */ }
+}
 
 export async function GET(request) {
     if (!supabaseAdmin) return Response.json({ posts: [] });
@@ -33,6 +42,7 @@ export async function POST(request) {
             const { id, ...insertData } = post;
             const { data, error } = await supabaseAdmin.from('blog_posts').insert(insertData).select().single();
             if (error) return Response.json({ error: error.message }, { status: 500 });
+            revalidateBlog(data?.slug);
             return Response.json({ success: true, post: data });
         }
 
@@ -40,12 +50,16 @@ export async function POST(request) {
             const { id, ...updateData } = post;
             const { data, error } = await supabaseAdmin.from('blog_posts').update(updateData).eq('id', id).select().single();
             if (error) return Response.json({ error: error.message }, { status: 500 });
+            revalidateBlog(data?.slug);
             return Response.json({ success: true, post: data });
         }
 
         if (action === 'delete') {
+            // Get slug before deleting for revalidation
+            const { data: existing } = await supabaseAdmin.from('blog_posts').select('slug').eq('id', postId).maybeSingle();
             const { error } = await supabaseAdmin.from('blog_posts').delete().eq('id', postId);
             if (error) return Response.json({ error: error.message }, { status: 500 });
+            revalidateBlog(existing?.slug);
             return Response.json({ success: true });
         }
 
@@ -54,6 +68,7 @@ export async function POST(request) {
                 .update({ status: 'published', published_at: new Date().toISOString() })
                 .eq('id', postId).select().single();
             if (error) return Response.json({ error: error.message }, { status: 500 });
+            revalidateBlog(data?.slug);
             return Response.json({ success: true, post: data });
         }
 
