@@ -43,6 +43,7 @@ export default function Navbar() {
                     <a href="#arak" className={styles.link} onClick={() => setMobileOpen(false)}>Árak</a>
                     <a href="#velemenyek" className={styles.link} onClick={() => setMobileOpen(false)}>Vélemények</a>
                     <Link href="/blog" className={styles.link} onClick={() => setMobileOpen(false)}>Blog</Link>
+                    <Link href="/tudasbazis" className={styles.link} onClick={() => setMobileOpen(false)}>Tudásbázis</Link>
                     <div className={styles.authButtons}>
                         {!loading && user ? (
                             <Link href="/dashboard" className={`btn btn-primary ${styles.registerBtn}`}>

@@ -42,6 +42,7 @@ export default function Footer() {
 
                         <div className={styles.column}>
                             <h4 className={styles.columnTitle}>Támogatás</h4>
+                            <Link href="/tudasbazis" className={styles.footerLink}>Tudásbázis</Link>
                             <span className={styles.footerLink}>GYIK</span>
                             <span className={styles.footerLink}>Kapcsolat</span>
                             <Link href="/adatvedelem" className={styles.footerLink}>Adatvédelem</Link>
