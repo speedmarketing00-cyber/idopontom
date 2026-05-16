@@ -11,6 +11,7 @@ export default function AdatvedelemPage() {
 
             <Section title="1. Az adatkezelő adatai">
                 <p><strong>Cégnév:</strong> Euro Simon Family Korlátolt Felelősségű Társaság</p>
+                <p><strong>Székhely:</strong> 2100 Gödöllő, Szabadság út 1.</p>
                 <p><strong>Adószám:</strong> 28734886-1-13</p>
                 <p><strong>E-mail:</strong> speedmarketing00@gmail.com</p>
                 <p><strong>Weboldal:</strong> https://foglaljvelem.hu</p>

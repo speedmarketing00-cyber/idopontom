@@ -194,6 +194,7 @@ export default function CookiePage() {
 
             <Section title="5. Adatkezelő és kapcsolat">
                 <p><strong>Adatkezelő:</strong> Euro Simon Family Korlátolt Felelősségű Társaság</p>
+                <p><strong>Székhely:</strong> 2100 Gödöllő, Szabadság út 1.</p>
                 <p><strong>E-mail:</strong> speedmarketing00@gmail.com</p>
                 <p>Cookie-kkal kapcsolatos kérdéseivel forduljon hozzánk bizalommal. Kérésére részletes tájékoztatást adunk az általunk elhelyezett sütikről.</p>
                 <p>A személyes adatok kezeléséről bővebben: <Link href="/adatvedelem" style={{ color: 'var(--primary-500)' }}>Adatvédelmi Tájékoztató</Link></p>

@@ -43,6 +43,7 @@ export default function AszfPage() {
                     {[
                         ['Cégnév', 'Euro Simon Family Korlátolt Felelősségű Társaság'],
                         ['Rövidített név', 'Euro Simon Family Kft.'],
+                        ['Székhely', '2100 Gödöllő, Szabadság út 1.'],
                         ['Cégjegyzékszám', 'Cg. 13-09-238087'],
                         ['Adószám', '28734886-1-13'],
                         ['E-mail', 'speedmarketing00@gmail.com'],
@@ -244,7 +245,7 @@ export default function AszfPage() {
             <div style={{ marginTop: 40, padding: 24, background: 'var(--gray-50)', borderRadius: 14, textAlign: 'center', border: '1px solid var(--gray-100)' }}>
                 <p style={{ fontWeight: 700, marginBottom: 4 }}>Euro Simon Family Kft. – FoglaljVelem.hu</p>
                 <p style={{ color: 'var(--gray-500)', fontSize: '0.85rem' }}>
-                    speedmarketing00@gmail.com<br />
+                    2100 Gödöllő, Szabadság út 1. | speedmarketing00@gmail.com<br />
                     © {new Date().getFullYear()} Minden jog fenntartva.
                 </p>
                 <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 12 }}>
