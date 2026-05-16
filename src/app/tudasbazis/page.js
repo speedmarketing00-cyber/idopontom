@@ -119,15 +119,15 @@ export default function TudasbazisPage() {
                 <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
                 {/* Hero */}
-                <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)', padding: '64px 20px 48px', textAlign: 'center' }}>
+                <div style={{ background: 'linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%)', padding: '110px 20px 48px', textAlign: 'center' }}>
                     <div style={{ maxWidth: 700, margin: '0 auto' }}>
                         <span style={{ fontSize: '3rem', display: 'block', marginBottom: 16 }}>📚</span>
-                        <h1 style={{ fontSize: '2.4rem', fontWeight: 800, color: 'white', marginBottom: 12, fontFamily: 'var(--font-display)' }}>
+                        <h1 style={{ fontSize: '2.4rem', fontWeight: 800, color: '#1e3a5f', marginBottom: 12, fontFamily: 'var(--font-display)' }}>
                             Tudásbázis
                         </h1>
-                        <p style={{ fontSize: '1.1rem', color: '#bfdbfe', marginBottom: 0, lineHeight: 1.6 }}>
+                        <p style={{ fontSize: '1.1rem', color: '#6b7280', marginBottom: 0, lineHeight: 1.6 }}>
                             Részletes útmutatók és tippek a FoglaljVelem használatához.<br/>
-                            <strong style={{ color: 'white' }}>{totalArticles} cikk</strong> {categories.length} kategóriában.
+                            <strong style={{ color: '#1e3a5f' }}>{totalArticles} cikk</strong> {categories.length} kategóriában.
                         </p>
                     </div>
                 </div>

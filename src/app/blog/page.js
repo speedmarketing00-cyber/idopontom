@@ -42,7 +42,7 @@ export default async function BlogPage() {
         <Navbar />
         <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f0f7ff 0%, #ffffff 40%)' }}>
             {/* Header */}
-            <div style={{ maxWidth: 900, margin: '0 auto', padding: '48px 20px 0' }}>
+            <div style={{ maxWidth: 900, margin: '0 auto', padding: '100px 20px 0' }}>
                 <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginTop: 0, marginBottom: 8, fontFamily: 'var(--font-display)', color: '#1e3a5f' }}>
                     FoglaljVelem Blog 📝
                 </h1>
