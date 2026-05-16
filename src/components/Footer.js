@@ -25,9 +25,9 @@ export default function Footer() {
 
                         <div className={styles.column}>
                             <h4 className={styles.columnTitle}>Termék</h4>
-                            <a href="#funkcio" className={styles.footerLink}>Funkciók</a>
-                            <a href="#arak" className={styles.footerLink}>Árazás</a>
-                            <a href="#hogyan" className={styles.footerLink}>Hogyan működik?</a>
+                            <a href="/#funkcio" className={styles.footerLink}>Funkciók</a>
+                            <a href="/#arak" className={styles.footerLink}>Árazás</a>
+                            <a href="/#hogyan" className={styles.footerLink}>Hogyan működik?</a>
                             <Link href="/blog" className={styles.footerLink}>Blog</Link>
                             <Link href="/auth/register" className={styles.footerLink}>Regisztráció</Link>
                         </div>
@@ -43,8 +43,8 @@ export default function Footer() {
                         <div className={styles.column}>
                             <h4 className={styles.columnTitle}>Támogatás</h4>
                             <Link href="/tudasbazis" className={styles.footerLink}>Tudásbázis</Link>
-                            <span className={styles.footerLink}>GYIK</span>
-                            <span className={styles.footerLink}>Kapcsolat</span>
+                            <Link href="/gyik" className={styles.footerLink}>GYIK</Link>
+                            <Link href="/kapcsolat" className={styles.footerLink}>Kapcsolat</Link>
                             <Link href="/adatvedelem" className={styles.footerLink}>Adatvédelem</Link>
                             <Link href="/aszf" className={styles.footerLink}>ÁSZF</Link>
                         </div>
