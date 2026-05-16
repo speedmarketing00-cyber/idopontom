@@ -19,13 +19,6 @@ const jsonLd = {
     name: 'FoglaljVelem',
     url: 'https://foglaljvelem.hu',
     email: 'speedmarketing00@gmail.com',
-    address: {
-        '@type': 'PostalAddress',
-        streetAddress: 'Csalogány utca 6.',
-        addressLocality: 'Gödöllő',
-        postalCode: '2100',
-        addressCountry: 'HU',
-    },
     contactPoint: {
         '@type': 'ContactPoint',
         email: 'speedmarketing00@gmail.com',
@@ -130,10 +123,6 @@ export default function KapcsolatPage() {
                             <div>
                                 <div style={{ fontWeight: 700, color: '#1e3a5f', marginBottom: 4 }}>Cégnév</div>
                                 Euro Simon Family Kft.
-                            </div>
-                            <div>
-                                <div style={{ fontWeight: 700, color: '#1e3a5f', marginBottom: 4 }}>Székhely</div>
-                                2100 Gödöllő, Csalogány utca 6.
                             </div>
                             <div>
                                 <div style={{ fontWeight: 700, color: '#1e3a5f', marginBottom: 4 }}>Adószám</div>
