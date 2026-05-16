@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 
 export const revalidate = 60; // ISR: regenerate every minute + on-demand revalidation from API
 
@@ -36,13 +38,12 @@ export default async function BlogPage() {
     };
 
     return (
+        <>
+        <Navbar />
         <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f0f7ff 0%, #ffffff 40%)' }}>
             {/* Header */}
             <div style={{ maxWidth: 900, margin: '0 auto', padding: '48px 20px 0' }}>
-                <Link href="/" style={{ color: 'var(--primary-500)', textDecoration: 'none', fontSize: '0.9rem' }}>
-                    ← Vissza a főoldalra
-                </Link>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginTop: 16, marginBottom: 8, fontFamily: 'var(--font-display)', color: '#1e3a5f' }}>
+                <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginTop: 0, marginBottom: 8, fontFamily: 'var(--font-display)', color: '#1e3a5f' }}>
                     FoglaljVelem Blog 📝
                 </h1>
                 <p style={{ fontSize: '1.1rem', color: '#6b7280', marginBottom: 48, maxWidth: 600 }}>
@@ -141,5 +142,7 @@ export default async function BlogPage() {
                 }
             `}</style>
         </div>
+        <Footer />
+        </>
     );
 }

@@ -38,10 +38,10 @@ export default function Navbar() {
 
                 <div className={`${styles.links} ${mobileOpen ? styles.open : ''}`}>
                     <button className={styles.mobileClose} onClick={() => setMobileOpen(false)} aria-label="Bezárás">✕</button>
-                    <a href="#funkcio" className={styles.link} onClick={() => setMobileOpen(false)}>Funkciók</a>
-                    <a href="#hogyan" className={styles.link} onClick={() => setMobileOpen(false)}>Hogyan működik?</a>
-                    <a href="#arak" className={styles.link} onClick={() => setMobileOpen(false)}>Árak</a>
-                    <a href="#velemenyek" className={styles.link} onClick={() => setMobileOpen(false)}>Vélemények</a>
+                    <a href="/#funkcio" className={styles.link} onClick={() => setMobileOpen(false)}>Funkciók</a>
+                    <a href="/#hogyan" className={styles.link} onClick={() => setMobileOpen(false)}>Hogyan működik?</a>
+                    <a href="/#arak" className={styles.link} onClick={() => setMobileOpen(false)}>Árak</a>
+                    <a href="/#velemenyek" className={styles.link} onClick={() => setMobileOpen(false)}>Vélemények</a>
                     <Link href="/blog" className={styles.link} onClick={() => setMobileOpen(false)}>Blog</Link>
                     <div className={styles.authButtons}>
                         {!loading && user ? (

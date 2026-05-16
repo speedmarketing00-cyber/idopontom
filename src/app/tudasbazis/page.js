@@ -115,45 +115,68 @@ export default function TudasbazisPage() {
     return (
         <>
             <Navbar />
-            <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f0f7ff 0%, #ffffff 40%)' }}>
+            <div style={{ minHeight: '100vh', background: '#ffffff' }}>
                 <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-                {/* Header */}
-                <div style={{ maxWidth: 960, margin: '0 auto', padding: '48px 20px 0' }}>
-                    <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginTop: 0, marginBottom: 8, fontFamily: 'var(--font-display)', color: '#1e3a5f' }}>
-                        Tudásbázis 📚
-                    </h1>
-                    <p style={{ fontSize: '1.1rem', color: '#6b7280', marginBottom: 12, maxWidth: 600 }}>
-                        Részletes útmutatók és tippek a FoglaljVelem használatához. {totalArticles} cikk {categories.length} kategóriában.
-                    </p>
+                {/* Hero */}
+                <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)', padding: '64px 20px 48px', textAlign: 'center' }}>
+                    <div style={{ maxWidth: 700, margin: '0 auto' }}>
+                        <span style={{ fontSize: '3rem', display: 'block', marginBottom: 16 }}>📚</span>
+                        <h1 style={{ fontSize: '2.4rem', fontWeight: 800, color: 'white', marginBottom: 12, fontFamily: 'var(--font-display)' }}>
+                            Tudásbázis
+                        </h1>
+                        <p style={{ fontSize: '1.1rem', color: '#bfdbfe', marginBottom: 0, lineHeight: 1.6 }}>
+                            Részletes útmutatók és tippek a FoglaljVelem használatához.<br/>
+                            <strong style={{ color: 'white' }}>{totalArticles} cikk</strong> {categories.length} kategóriában.
+                        </p>
+                    </div>
+                </div>
 
-                    {/* Quick search hint */}
+                {/* Category quick-links */}
+                <div style={{ maxWidth: 960, margin: '-28px auto 0', padding: '0 20px', position: 'relative', zIndex: 2 }}>
                     <div style={{
-                        background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: 12,
-                        padding: '14px 20px', marginBottom: 48, fontSize: '0.9rem', color: '#1e40af',
+                        display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center',
+                        background: 'white', borderRadius: 16, padding: '18px 24px',
+                        boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #e5e7eb',
                     }}>
-                        💡 <strong>Tipp:</strong> Ha nem találsz választ a kérdésedre, írj nekünk: <a href="mailto:speedmarketing00@gmail.com" style={{ color: '#2563eb', fontWeight: 600 }}>speedmarketing00@gmail.com</a>
+                        {categories.map(cat => (
+                            <a key={cat.id} href={`#${cat.id}`} className="kb-cat-link" style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                padding: '8px 16px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600,
+                                background: cat.bg, color: cat.color, textDecoration: 'none',
+                                border: `1px solid ${cat.bg}`, transition: 'all 0.2s',
+                            }}>
+                                {cat.icon} {cat.title}
+                            </a>
+                        ))}
                     </div>
                 </div>
 
                 {/* Categories */}
-                <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 20px 80px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 48 }}>
+                <div style={{ maxWidth: 960, margin: '0 auto', padding: '48px 20px 80px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 56 }}>
                         {categories.map(cat => (
                             <section key={cat.id} id={cat.id}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24,
+                                    paddingBottom: 16, borderBottom: '2px solid #f1f5f9',
+                                }}>
                                     <span style={{
-                                        fontSize: '1.5rem', width: 48, height: 48, borderRadius: 12,
+                                        fontSize: '1.6rem', width: 52, height: 52, borderRadius: 14,
                                         background: cat.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                                     }}>
                                         {cat.icon}
                                     </span>
                                     <div>
-                                        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e3a5f', margin: 0, fontFamily: 'var(--font-display)' }}>
+                                        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#1e3a5f', margin: 0, fontFamily: 'var(--font-display)' }}>
                                             {cat.title}
                                         </h2>
-                                        <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: 0 }}>{cat.desc}</p>
+                                        <p style={{ fontSize: '0.9rem', color: '#6b7280', margin: 0 }}>{cat.desc}</p>
                                     </div>
+                                    <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#9ca3af', fontWeight: 500 }}>
+                                        {cat.articles.length} cikk
+                                    </span>
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
                                     {cat.articles.map(article => (
@@ -164,16 +187,18 @@ export default function TudasbazisPage() {
                                             style={{ textDecoration: 'none', color: 'inherit' }}
                                         >
                                             <article style={{
-                                                background: 'white', borderRadius: 14, padding: '20px 24px',
+                                                background: 'white', borderRadius: 14, padding: '22px 24px',
                                                 border: '1px solid #e5e7eb', transition: 'all 0.2s',
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                                display: 'flex', flexDirection: 'column', height: '100%',
                                             }}>
-                                                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e3a5f', marginBottom: 6, lineHeight: 1.4 }}>
+                                                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e3a5f', marginBottom: 8, lineHeight: 1.4 }}>
                                                     {article.title}
                                                 </h3>
-                                                <p style={{ fontSize: '0.85rem', color: '#6b7280', lineHeight: 1.5, margin: 0 }}>
+                                                <p style={{ fontSize: '0.85rem', color: '#6b7280', lineHeight: 1.6, margin: 0, flex: 1 }}>
                                                     {article.desc}
                                                 </p>
-                                                <span style={{ display: 'inline-block', marginTop: 10, fontSize: '0.8rem', color: '#2563eb', fontWeight: 600 }}>
+                                                <span style={{ display: 'inline-block', marginTop: 14, fontSize: '0.8rem', color: cat.color, fontWeight: 600 }}>
                                                     Elolvasom →
                                                 </span>
                                             </article>
@@ -186,17 +211,21 @@ export default function TudasbazisPage() {
                 </div>
 
                 {/* CTA */}
-                <div style={{ background: '#1e3a5f', padding: '48px 20px', textAlign: 'center' }}>
+                <div style={{
+                    background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
+                    padding: '56px 20px', textAlign: 'center',
+                }}>
+                    <span style={{ fontSize: '2rem', display: 'block', marginBottom: 12 }}>🤔</span>
                     <h2 style={{ color: 'white', fontSize: '1.5rem', fontWeight: 700, marginBottom: 12 }}>
                         Nem találtad meg a választ?
                     </h2>
-                    <p style={{ color: '#93c5fd', marginBottom: 24, fontSize: '1rem' }}>
+                    <p style={{ color: '#bfdbfe', marginBottom: 24, fontSize: '1rem' }}>
                         Írj nekünk és segítünk mindent beállítani!
                     </p>
                     <a href="mailto:speedmarketing00@gmail.com" style={{
-                        display: 'inline-block', background: 'linear-gradient(135deg, #3b82f6, #7c3aed)',
-                        color: 'white', padding: '14px 32px', borderRadius: 12, fontWeight: 600,
-                        textDecoration: 'none', fontSize: '1rem',
+                        display: 'inline-block', background: 'white',
+                        color: '#1e3a5f', padding: '14px 32px', borderRadius: 12, fontWeight: 700,
+                        textDecoration: 'none', fontSize: '1rem', boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
                     }}>
                         📧 speedmarketing00@gmail.com
                     </a>
@@ -204,9 +233,13 @@ export default function TudasbazisPage() {
 
                 <style>{`
                     .kb-card article:hover {
-                        transform: translateY(-2px);
-                        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-                        border-color: #bfdbfe;
+                        transform: translateY(-3px);
+                        box-shadow: 0 8px 28px rgba(0,0,0,0.1);
+                        border-color: #93c5fd;
+                    }
+                    .kb-cat-link:hover {
+                        transform: translateY(-1px);
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
                     }
                 `}</style>
             </div>

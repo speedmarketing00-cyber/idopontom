@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 
 export const revalidate = 60; // ISR + on-demand revalidation from API
 
@@ -71,6 +73,8 @@ export default async function BlogPostPage({ params }) {
     };
 
     return (
+        <>
+        <Navbar />
         <div style={{ minHeight: '100vh', background: '#ffffff' }}>
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
@@ -171,5 +175,7 @@ export default async function BlogPostPage({ params }) {
                 }
             `}</style>
         </div>
+        <Footer />
+        </>
     );
 }
