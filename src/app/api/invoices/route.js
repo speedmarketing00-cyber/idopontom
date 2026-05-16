@@ -371,7 +371,7 @@ async function reportToNav(invoice, items, settings) {
             type: 'LOCAL_SOFTWARE',
             mainVersion: '1',
             devName: 'FoglaljVelem',
-            devContact: 'info@foglaljvelem.hu',
+            devContact: 'speedmarketing00@gmail.com',
         },
     });
 

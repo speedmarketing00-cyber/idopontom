@@ -171,12 +171,12 @@ export default async function ArticlePage({ params }) {
                     <p style={{ color: '#93c5fd', marginBottom: 24, fontSize: '1rem' }}>
                         Írj nekünk és segítünk mindent beállítani!
                     </p>
-                    <a href="mailto:info@foglaljvelem.hu" style={{
+                    <a href="mailto:speedmarketing00@gmail.com" style={{
                         display: 'inline-block', background: 'linear-gradient(135deg, #3b82f6, #7c3aed)',
                         color: 'white', padding: '14px 32px', borderRadius: 12, fontWeight: 600,
                         textDecoration: 'none', fontSize: '1rem',
                     }}>
-                        📧 info@foglaljvelem.hu
+                        📧 speedmarketing00@gmail.com
                     </a>
                 </div>
 

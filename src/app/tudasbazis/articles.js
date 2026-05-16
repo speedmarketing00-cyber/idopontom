@@ -454,7 +454,7 @@ const articles = {
             </div>
 
             <div class="kb-info">
-                <strong>ℹ️ Haladó:</strong> Ha a saját Meta Pixel-ed mellett a Conversions API token-t is be szeretnéd állítani, lépj kapcsolatba velünk az info@foglaljvelem.hu címen.
+                <strong>ℹ️ Haladó:</strong> Ha a saját Meta Pixel-ed mellett a Conversions API token-t is be szeretnéd állítani, lépj kapcsolatba velünk az speedmarketing00@gmail.com címen.
             </div>
         `,
     },
@@ -1206,7 +1206,7 @@ const articles = {
             <p>Ha saját számlázó programot használsz (pl. Számlázz.hu, Billingo), hamarosan lehetőség lesz automatikus integrációra is.</p>
 
             <div class="kb-info">
-                <strong>ℹ️ Hamarosan:</strong> A Számlázz.hu és Billingo integráció fejlesztés alatt áll. Ha igényled, írj nekünk az <a href="mailto:info@foglaljvelem.hu">info@foglaljvelem.hu</a> címre!
+                <strong>ℹ️ Hamarosan:</strong> A Számlázz.hu és Billingo integráció fejlesztés alatt áll. Ha igényled, írj nekünk az <a href="mailto:speedmarketing00@gmail.com">speedmarketing00@gmail.com</a> címre!
             </div>
 
             <h2>🔹 Fizetési probléma</h2>
@@ -1214,7 +1214,7 @@ const articles = {
             <ol>
                 <li>Ellenőrizd, hogy van-e elegendő egyenleg a kártyádon</li>
                 <li>Próbálj meg egy másik kártyát megadni</li>
-                <li>Ha továbbra is problémás, írj az <strong>info@foglaljvelem.hu</strong> címre</li>
+                <li>Ha továbbra is problémás, írj az <strong>speedmarketing00@gmail.com</strong> címre</li>
             </ol>
 
             <div class="kb-tip">

@@ -13,7 +13,7 @@ export default function AdatvedelemPage() {
                 <p><strong>Cégnév:</strong> Euro Simon Family Korlátolt Felelősségű Társaság</p>
                 <p><strong>Székhely:</strong> 2100 Gödöllő, Csalogány utca 6.</p>
                 <p><strong>Adószám:</strong> 28734886-1-13</p>
-                <p><strong>E-mail:</strong> info@foglaljvelem.hu</p>
+                <p><strong>E-mail:</strong> speedmarketing00@gmail.com</p>
                 <p><strong>Weboldal:</strong> https://foglaljvelem.hu</p>
             </Section>
 
@@ -140,7 +140,7 @@ export default function AdatvedelemPage() {
                     <li><strong>Tiltakozás joga</strong> – tiltakozhat a jogos érdeken alapuló adatkezelés ellen</li>
                     <li><strong>Hozzájárulás visszavonása</strong> – a sütibeleegyezés bármikor visszavonható a böngésző beállításaiban</li>
                 </ul>
-                <p>Jogai gyakorlásához írjon az <strong>info@foglaljvelem.hu</strong> email címre. Kérésére 30 napon belül válaszolunk.</p>
+                <p>Jogai gyakorlásához írjon az <strong>speedmarketing00@gmail.com</strong> email címre. Kérésére 30 napon belül válaszolunk.</p>
             </Section>
 
             <Section title="8. Automatizált döntéshozatal">

@@ -46,7 +46,7 @@ export default function AszfPage() {
                         ['Székhely', '2100 Gödöllő, Csalogány utca 6.'],
                         ['Cégjegyzékszám', 'Cg. 13-09-238087'],
                         ['Adószám', '28734886-1-13'],
-                        ['E-mail', 'info@foglaljvelem.hu'],
+                        ['E-mail', 'speedmarketing00@gmail.com'],
                         ['Weboldal', 'https://foglaljvelem.hu'],
                         ['Ügyfélszolgálat', 'Hétfő–Péntek 9:00–17:00'],
                     ].map(([k, v]) => (
@@ -197,7 +197,7 @@ export default function AszfPage() {
                 <Sub title="9.2 Elállási jog (fogyasztók esetén)">
                     <p>A 45/2014. (II. 26.) Korm. rendelet alapján fogyasztónak minősülő természetes személy Felhasználó a fizetős előfizetés megkötésétől számított <strong>14 naptári napon belül</strong> indokolás nélkül elállhat a szerződéstől, ha a szolgáltatást még nem vette igénybe (a platformot nem használta az előfizetési időszakban).</p>
                     <Alert>Ha a Felhasználó az előfizetési időszakon belül a platformot ténylegesen igénybe vette (pl. a Dashboardba bejelentkezett, foglalásokat kezelt), az elállási jog megszűnik, a 151/2003. (IX. 22.) Korm. rendelet 29. § (1) l) pontja alapján (digitális tartalom azonnali teljesítése).</Alert>
-                    <p>Elállási szándékát az <strong>info@foglaljvelem.hu</strong> e-mail címre küldje, feltüntetve: nevét, e-mail címét, a szerződés dátumát és az elállás tényét. Az elállást az előírt 14 napon belül visszaigazoljuk, és a visszatérítést 14 napon belül teljesítjük.</p>
+                    <p>Elállási szándékát az <strong>speedmarketing00@gmail.com</strong> e-mail címre küldje, feltüntetve: nevét, e-mail címét, a szerződés dátumát és az elállás tényét. Az elállást az előírt 14 napon belül visszaigazoljuk, és a visszatérítést 14 napon belül teljesítjük.</p>
                 </Sub>
                 <Sub title="9.3 FoglaljVelem.hu általi felmondás">
                     <p>A FoglaljVelem.hu jogosult a Felhasználó fiókját 30 napos felmondási idővel, indoklással megszüntetni. ÁSZF súlyos megsértése esetén azonnali hatályú felmondásra is jogosult. Ilyen esetben az arányos előfizetési díjat visszatérítjük.</p>
@@ -219,7 +219,7 @@ export default function AszfPage() {
 
             <Section title="12. Panaszkezelés és vitarendezés">
                 <Sub title="12.1 Ügyfélszolgálat">
-                    <p>Panaszát az <strong>info@foglaljvelem.hu</strong> e-mail címen jelezze. Panaszát 5 munkanapon belül megvizsgáljuk és írásban válaszolunk.</p>
+                    <p>Panaszát az <strong>speedmarketing00@gmail.com</strong> e-mail címen jelezze. Panaszát 5 munkanapon belül megvizsgáljuk és írásban válaszolunk.</p>
                 </Sub>
                 <Sub title="12.2 Alternatív vitarendezés">
                     <p>Fogyasztói jogvita esetén a Budapesti Békéltető Testülethez fordulhat: <strong>1016 Budapest, Krisztina krt. 99.</strong> | Tel: +36 1 488 2131 | Web: <a href="https://bekeltet.bfkb.hu" target="_blank" rel="noreferrer" style={{ color: 'var(--primary-500)' }}>bekeltet.bfkb.hu</a></p>
@@ -245,7 +245,7 @@ export default function AszfPage() {
             <div style={{ marginTop: 40, padding: 24, background: 'var(--gray-50)', borderRadius: 14, textAlign: 'center', border: '1px solid var(--gray-100)' }}>
                 <p style={{ fontWeight: 700, marginBottom: 4 }}>Euro Simon Family Kft. – FoglaljVelem.hu</p>
                 <p style={{ color: 'var(--gray-500)', fontSize: '0.85rem' }}>
-                    2100 Gödöllő, Csalogány utca 6. | info@foglaljvelem.hu<br />
+                    2100 Gödöllő, Csalogány utca 6. | speedmarketing00@gmail.com<br />
                     © {new Date().getFullYear()} Minden jog fenntartva.
                 </p>
                 <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 12 }}>

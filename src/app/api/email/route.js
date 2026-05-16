@@ -240,7 +240,7 @@ function registrationWelcomeEmail({ userName, userEmail }) {
     <div style="text-align:center;">
       <a href="https://foglaljvelem.hu/dashboard" style="display:inline-block;background:linear-gradient(135deg,#2563eb,#7c3aed);color:white;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:600;font-size:0.95rem;">📅 Irány a vezérlőpult →</a>
     </div>
-    <p style="color:#6b7280;font-size:0.8rem;text-align:center;margin-top:20px;">Ha bármilyen kérdésed van, írj nekünk: <a href="mailto:info@foglaljvelem.hu" style="color:#2563eb;">info@foglaljvelem.hu</a></p>
+    <p style="color:#6b7280;font-size:0.8rem;text-align:center;margin-top:20px;">Ha bármilyen kérdésed van, írj nekünk: <a href="mailto:speedmarketing00@gmail.com" style="color:#2563eb;">speedmarketing00@gmail.com</a></p>
   </div>
   <p style="text-align:center;color:#9ca3af;font-size:0.75rem;margin-top:16px;">FoglaljVelem.hu – Online időpontfoglalás</p>
 </div>

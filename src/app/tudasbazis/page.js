@@ -132,7 +132,7 @@ export default function TudasbazisPage() {
                         background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: 12,
                         padding: '14px 20px', marginBottom: 48, fontSize: '0.9rem', color: '#1e40af',
                     }}>
-                        💡 <strong>Tipp:</strong> Ha nem találsz választ a kérdésedre, írj nekünk: <a href="mailto:info@foglaljvelem.hu" style={{ color: '#2563eb', fontWeight: 600 }}>info@foglaljvelem.hu</a>
+                        💡 <strong>Tipp:</strong> Ha nem találsz választ a kérdésedre, írj nekünk: <a href="mailto:speedmarketing00@gmail.com" style={{ color: '#2563eb', fontWeight: 600 }}>speedmarketing00@gmail.com</a>
                     </div>
                 </div>
 
@@ -193,12 +193,12 @@ export default function TudasbazisPage() {
                     <p style={{ color: '#93c5fd', marginBottom: 24, fontSize: '1rem' }}>
                         Írj nekünk és segítünk mindent beállítani!
                     </p>
-                    <a href="mailto:info@foglaljvelem.hu" style={{
+                    <a href="mailto:speedmarketing00@gmail.com" style={{
                         display: 'inline-block', background: 'linear-gradient(135deg, #3b82f6, #7c3aed)',
                         color: 'white', padding: '14px 32px', borderRadius: 12, fontWeight: 600,
                         textDecoration: 'none', fontSize: '1rem',
                     }}>
-                        📧 info@foglaljvelem.hu
+                        📧 speedmarketing00@gmail.com
                     </a>
                 </div>
 
