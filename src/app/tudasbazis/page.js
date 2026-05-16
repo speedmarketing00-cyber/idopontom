@@ -120,10 +120,7 @@ export default function TudasbazisPage() {
 
                 {/* Header */}
                 <div style={{ maxWidth: 960, margin: '0 auto', padding: '48px 20px 0' }}>
-                    <Link href="/" style={{ color: '#2563eb', textDecoration: 'none', fontSize: '0.9rem' }}>
-                        ← Vissza a főoldalra
-                    </Link>
-                    <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginTop: 16, marginBottom: 8, fontFamily: 'var(--font-display)', color: '#1e3a5f' }}>
+                    <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginTop: 0, marginBottom: 8, fontFamily: 'var(--font-display)', color: '#1e3a5f' }}>
                         Tudásbázis 📚
                     </h1>
                     <p style={{ fontSize: '1.1rem', color: '#6b7280', marginBottom: 12, maxWidth: 600 }}>
