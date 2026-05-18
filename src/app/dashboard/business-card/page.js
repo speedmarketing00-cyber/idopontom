@@ -370,6 +370,7 @@ export default function BusinessCardPage() {
     const [logoUrl, setLogoUrl] = useState('');
     const [logoUploading, setLogoUploading] = useState(false);
     const [downloading, setDownloading] = useState(false);
+    const [downloadFormat, setDownloadFormat] = useState(null); // 'png' | 'pdf'
 
     const [cardData, setCardData] = useState({
         name: '',
@@ -429,8 +430,9 @@ export default function BusinessCardPage() {
         reader.readAsDataURL(file);
     };
 
-    const handleDownload = async () => {
+    const handleDownload = async (format) => {
         setDownloading(true);
+        setDownloadFormat(format);
         try {
             // Create a fresh high-res canvas for download
             const dlCanvas = document.createElement('canvas');
@@ -439,15 +441,26 @@ export default function BusinessCardPage() {
                 data: { ...cardData, logoUrl, color, bookingUrl, nameSize, businessSize },
                 fonts: { family: currentFont.family },
             });
-            const link = document.createElement('a');
-            link.download = `nevjegykartya-${template}.png`;
-            link.href = dlCanvas.toDataURL('image/png', 1.0);
-            link.click();
+
+            if (format === 'pdf') {
+                const { default: jsPDF } = await import('jspdf');
+                // Business card size: 90mm x 50mm (standard)
+                const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [90, 50] });
+                const imgData = dlCanvas.toDataURL('image/png', 1.0);
+                pdf.addImage(imgData, 'PNG', 0, 0, 90, 50);
+                pdf.save(`nevjegykartya-${template}.pdf`);
+            } else {
+                const link = document.createElement('a');
+                link.download = `nevjegykartya-${template}.png`;
+                link.href = dlCanvas.toDataURL('image/png', 1.0);
+                link.click();
+            }
         } catch (err) {
             console.error('Download error:', err);
             alert('Hiba a letoltesnel. Probald ujra!');
         } finally {
             setDownloading(false);
+            setDownloadFormat(null);
         }
     };
 
@@ -622,18 +635,28 @@ export default function BusinessCardPage() {
                         </div>
                     </div>
 
-                    <button onClick={handleDownload} disabled={downloading} style={{
-                        width: '100%', marginTop: 16, padding: '16px 24px',
-                        borderRadius: 14, border: 'none', fontWeight: 700, fontSize: '1rem',
-                        background: downloading ? 'var(--gray-300)' : `linear-gradient(135deg, ${color}, ${adjustColor(color, -40)})`,
-                        color: 'white', cursor: downloading ? 'wait' : 'pointer',
-                        boxShadow: `0 4px 16px ${color}44`, transition: 'all 0.2s',
-                    }}>
-                        {downloading ? '⏳ Generálás...' : '📥 Letöltés PNG-ben (nyomtatható minőség)'}
-                    </button>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
+                        <button onClick={() => handleDownload('png')} disabled={downloading} style={{
+                            padding: '14px 20px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: '0.9rem',
+                            background: downloading && downloadFormat === 'png' ? 'var(--gray-300)' : `linear-gradient(135deg, ${color}, ${adjustColor(color, -40)})`,
+                            color: 'white', cursor: downloading ? 'wait' : 'pointer',
+                            boxShadow: `0 4px 12px ${color}33`, transition: 'all 0.2s',
+                        }}>
+                            {downloading && downloadFormat === 'png' ? '⏳...' : '🖼️ PNG letöltés'}
+                        </button>
+                        <button onClick={() => handleDownload('pdf')} disabled={downloading} style={{
+                            padding: '14px 20px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: '0.9rem',
+                            background: downloading && downloadFormat === 'pdf' ? 'var(--gray-300)' : '#1e293b',
+                            color: 'white', cursor: downloading ? 'wait' : 'pointer',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)', transition: 'all 0.2s',
+                        }}>
+                            {downloading && downloadFormat === 'pdf' ? '⏳...' : '📄 PDF letöltés'}
+                        </button>
+                    </div>
 
-                    <p style={{ fontSize: '0.78rem', color: 'var(--gray-400)', textAlign: 'center', marginTop: 10 }}>
-                        1200×680px • A QR kód ide mutat: <strong style={{ color: 'var(--gray-600)' }}>foglaljvelem.hu/book/{profile?.slug || '...'}</strong>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--gray-400)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+                        PNG: 1200×680px digitális használatra • PDF: 90×50mm nyomtatáshoz<br />
+                        QR kód → <strong style={{ color: 'var(--gray-600)' }}>foglaljvelem.hu/book/{profile?.slug || '...'}</strong>
                     </p>
                 </div>
             </div>
