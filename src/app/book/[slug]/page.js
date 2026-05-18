@@ -43,6 +43,16 @@ function generateSlots(start, end, breakStart, breakEnd, duration, bookedRanges,
     return slots;
 }
 
+function isLightColor(hex) {
+    if (!hex) return true;
+    hex = hex.replace('#', '');
+    if (hex.length !== 6) return true;
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 > 128;
+}
+
 const businessTypeIcons = {
     'hair_salon': '💇',
     'beauty_salon': '💅',
@@ -462,10 +472,45 @@ export default function BookingPage({ params }) {
 
     const icon = businessTypeIcons[provider?.business_type] || '📅';
 
+    // Theme customization (Profi feature)
+    const bookingTheme = provider?.booking_theme || 'light';
+    const accentColor = provider?.booking_accent_color || null;
+    const customBg = provider?.booking_custom_bg || null;
+    const customCardBg = provider?.booking_custom_card_bg || null;
+
+    const themeStyles = (() => {
+        if (bookingTheme === 'dark') return {
+            pageBg: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+            cardBg: '#1e293b',
+            textColor: '#f1f5f9',
+            subtextColor: '#94a3b8',
+            borderColor: '#334155',
+            hoverBg: '#334155',
+            inputBg: '#0f172a',
+            inputBorder: '#334155',
+        };
+        if (bookingTheme === 'custom' && customBg) {
+            const isLight = isLightColor(customCardBg || '#ffffff');
+            return {
+                pageBg: customBg,
+                cardBg: customCardBg || '#ffffff',
+                textColor: isLight ? '#1e293b' : '#f1f5f9',
+                subtextColor: isLight ? '#64748b' : '#94a3b8',
+                borderColor: isLight ? '#e2e8f0' : '#334155',
+                hoverBg: isLight ? '#f8fafc' : '#334155',
+                inputBg: isLight ? '#ffffff' : '#0f172a',
+                inputBorder: isLight ? '#e2e8f0' : '#334155',
+            };
+        }
+        return { pageBg: null, cardBg: null, textColor: null, subtextColor: null, borderColor: null, hoverBg: null, inputBg: null, inputBorder: null };
+    })();
+
+    const hasCustomTheme = bookingTheme !== 'light';
+
     return (
-        <div className={s.bookingPage}>
+        <div className={s.bookingPage} style={hasCustomTheme ? { background: themeStyles.pageBg } : undefined}>
             <div className={s.bookingContainer}>
-                <div className={s.bookingHeader}>
+                <div className={s.bookingHeader} style={hasCustomTheme ? { color: themeStyles.textColor } : undefined}>
                     {provider?.avatar_url ? (
                         <img src={provider.avatar_url} alt={provider?.business_name} style={{
                             width: 56, height: 56, borderRadius: 14, objectFit: 'cover',
@@ -474,17 +519,17 @@ export default function BookingPage({ params }) {
                     ) : (
                         <div className={s.providerAvatar}>{icon}</div>
                     )}
-                    <h1 className={s.providerName}>{provider?.business_name || 'Szolgáltató'}</h1>
-                    {provider?.business_type && <p className={s.providerType}>{provider.business_type}</p>}
+                    <h1 className={s.providerName} style={hasCustomTheme ? { color: themeStyles.textColor } : undefined}>{provider?.business_name || 'Szolgáltató'}</h1>
+                    {provider?.business_type && <p className={s.providerType} style={hasCustomTheme ? { color: themeStyles.subtextColor } : undefined}>{provider.business_type}</p>}
                     {(provider?.address || provider?.city) && (
-                        <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginTop: 4 }}>
+                        <p style={{ fontSize: '0.85rem', color: hasCustomTheme ? themeStyles.subtextColor : 'var(--gray-500)', marginTop: 4 }}>
                             📍 {[provider.address, provider.city].filter(Boolean).join(', ')}
                         </p>
                     )}
                 </div>
 
                 {!booked && (
-                    <div className={s.bookingCard}>
+                    <div className={s.bookingCard} style={hasCustomTheme ? { background: themeStyles.cardBg, boxShadow: bookingTheme === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : undefined } : undefined}>
                         <div className={s.stepIndicator}>
                             {Array.from({ length: TOTAL_STEPS }).map((_, i) => {
                                 const stepNum = i + 1;
@@ -732,10 +777,60 @@ export default function BookingPage({ params }) {
                     </div>
                 )}
 
-                <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--gray-400)', marginTop: 16 }}>
-                    Működteti a <Link href="/" style={{ color: 'var(--primary-500)', fontWeight: 600 }}>FoglaljVelem.hu</Link>
+                <p style={{ textAlign: 'center', fontSize: '0.8rem', color: hasCustomTheme ? themeStyles.subtextColor : 'var(--gray-400)', marginTop: 16 }}>
+                    Működteti a <Link href="/" style={{ color: accentColor || 'var(--primary-500)', fontWeight: 600 }}>FoglaljVelem.hu</Link>
                 </p>
             </div>
+            {/* Inject accent color as CSS custom property */}
+            {accentColor && (
+                <style>{`
+                    .btn-primary, .btn.btn-primary {
+                        background: ${accentColor} !important;
+                        border-color: ${accentColor} !important;
+                    }
+                    .btn-primary:hover, .btn.btn-primary:hover {
+                        background: ${accentColor}dd !important;
+                    }
+                    .${s.serviceOption}.${s.selected}, .${s.serviceOption}:hover {
+                        border-color: ${accentColor} !important;
+                    }
+                    .${s.stepDot}.${s.active} {
+                        background: ${accentColor} !important;
+                        border-color: ${accentColor} !important;
+                    }
+                    .${s.stepDot}.${s.done} {
+                        background: ${accentColor} !important;
+                        border-color: ${accentColor} !important;
+                    }
+                    .${s.stepLine}.${s.done} {
+                        background: ${accentColor} !important;
+                    }
+                `}</style>
+            )}
+            {/* Inject dark/custom theme text colors for form inputs */}
+            {hasCustomTheme && (
+                <style>{`
+                    .${s.bookingCard} h3 { color: ${themeStyles.textColor} !important; }
+                    .${s.bookingCard} .input-label { color: ${themeStyles.subtextColor} !important; }
+                    .${s.bookingCard} .input {
+                        background: ${themeStyles.inputBg} !important;
+                        border-color: ${themeStyles.inputBorder} !important;
+                        color: ${themeStyles.textColor} !important;
+                    }
+                    .${s.serviceOption} {
+                        border-color: ${themeStyles.borderColor} !important;
+                    }
+                    .${s.serviceOption} h4 { color: ${themeStyles.textColor} !important; }
+                    .${s.serviceOption} p { color: ${themeStyles.subtextColor} !important; }
+                    .${s.servicePrice} { color: ${accentColor || 'var(--primary-500)'} !important; }
+                    .${s.backLink} { color: ${themeStyles.subtextColor} !important; }
+                    .${s.summaryRow} { border-color: ${themeStyles.borderColor} !important; }
+                    .${s.summaryLabel} { color: ${themeStyles.subtextColor} !important; }
+                    .${s.summaryValue} { color: ${themeStyles.textColor} !important; }
+                    .${s.confirmTitle} { color: ${themeStyles.textColor} !important; }
+                    .${s.confirmDesc} { color: ${themeStyles.subtextColor} !important; }
+                `}</style>
+            )}
         </div>
     );
 }
