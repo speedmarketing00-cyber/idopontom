@@ -4,9 +4,10 @@ import { useAuth } from '@/components/AuthProvider';
 import s from '../dashboard.module.css';
 
 const TEMPLATES = [
-    { id: 'classic', name: 'Klasszikus', desc: 'Vízszintes, letisztult elrendezés', preview: '📋' },
-    { id: 'bold', name: 'Színes', desc: 'Merész, feltűnő, középre rendezett', preview: '🔥' },
-    { id: 'elegant', name: 'Elegáns', desc: 'Sötét, prémium, függőleges hangsúly', preview: '✨' },
+    { id: 'classic', name: 'Klasszikus', desc: 'Letisztult, világos', preview: '📋' },
+    { id: 'bold', name: 'Színes', desc: 'Merész, feltűnő', preview: '🔥' },
+    { id: 'elegant', name: 'Elegáns', desc: 'Sötét, prémium', preview: '✨' },
+    { id: 'premium', name: 'Prémium', desc: 'Profilképes, különleges', preview: '👔' },
 ];
 
 const FONTS = [
@@ -256,7 +257,7 @@ async function drawCard(canvas, { template, data, fonts }) {
     }
 
     // ===== TEMPLATE: ELEGANT =====
-    else {
+    else if (template === 'elegant') {
         // Dark background
         const grad = ctx.createLinearGradient(0, 0, W, H);
         grad.addColorStop(0, '#1a1a2e');
@@ -271,10 +272,8 @@ async function drawCard(canvas, { template, data, fonts }) {
         ctx.fill();
         ctx.fillRect(0, 3, W, 4);
 
-        // Left content area
         let contentY = 60;
 
-        // Logo
         if (logoImg) {
             ctx.save();
             roundRect(ctx, 64, contentY, 72, 72, 14);
@@ -284,64 +283,200 @@ async function drawCard(canvas, { template, data, fonts }) {
             contentY += 92;
         }
 
-        // Business name (small, caps, spaced)
         ctx.fillStyle = color;
         ctx.font = `700 ${businessSize * 1.4}px ${fontFamily}`;
         ctx.textBaseline = 'top';
-        ctx.letterSpacing = '4px';
         ctx.fillText((businessName || 'Vállalkozás neve').toUpperCase(), 64, contentY);
         contentY += businessSize * 1.4 + 16;
 
-        // Name (large)
         ctx.fillStyle = '#e2e8f0';
         ctx.font = `800 ${nameSize * 2.2}px ${fontFamily}`;
         ctx.fillText(name || 'Neved', 64, contentY);
         contentY += nameSize * 2.2 + 20;
 
-        // Accent line divider
         ctx.fillStyle = color;
         roundRect(ctx, 64, contentY, 80, 4, 2);
         ctx.fill();
         contentY += 28;
 
-        // Contact details (vertical)
         ctx.font = `400 26px ${fontFamily}`;
         const details = [];
         if (phone) details.push(phone);
         if (email) details.push(email);
         if (website) details.push(website);
-
         details.forEach((text, i) => {
             ctx.fillStyle = '#94a3b8';
             ctx.fillText(text, 64, contentY + i * 38);
         });
 
-        // Right side - QR with elegant frame
         if (qrImg) {
             const qrSize = 240;
             const qrX = W - qrSize - 100;
             const qrY = (H - qrSize - 60) / 2;
-
-            // Subtle frame
             ctx.strokeStyle = 'rgba(255,255,255,0.08)';
             ctx.lineWidth = 2;
             roundRect(ctx, qrX - 28, qrY - 28, qrSize + 56, qrSize + 76, 20);
             ctx.stroke();
-
-            // White QR background
             ctx.fillStyle = '#f8fafc';
             roundRect(ctx, qrX - 16, qrY - 16, qrSize + 32, qrSize + 32, 16);
             ctx.fill();
-
             ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
-
-            // Label
             ctx.fillStyle = '#64748b';
             ctx.font = `600 20px ${fontFamily}`;
             ctx.textAlign = 'center';
             ctx.fillText('Foglalj online', qrX + qrSize / 2, qrY + qrSize + 36);
             ctx.textAlign = 'left';
         }
+    }
+
+    // ===== TEMPLATE: PREMIUM =====
+    else if (template === 'premium') {
+        // Load profile photo
+        let photoImg = null;
+        if (data.photoUrl) {
+            try { photoImg = await loadImage(data.photoUrl); } catch (e) { console.warn('Photo error:', e); }
+        }
+
+        // Full dark background
+        ctx.fillStyle = '#0f0f0f';
+        roundRect(ctx, 0, 0, W, H, 32);
+        ctx.fill();
+
+        // Right side: diagonal accent shape
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(W * 0.55, 0);
+        ctx.lineTo(W, 0);
+        ctx.lineTo(W, H);
+        ctx.lineTo(W * 0.45, H);
+        ctx.closePath();
+        ctx.clip();
+
+        // Gradient accent on the right diagonal
+        const diagGrad = ctx.createLinearGradient(W * 0.5, 0, W, H);
+        diagGrad.addColorStop(0, color);
+        diagGrad.addColorStop(1, adjustColor(color, -50));
+        ctx.fillStyle = diagGrad;
+        ctx.fillRect(0, 0, W, H);
+
+        // Profile photo in a circle on the right
+        if (photoImg) {
+            const photoSize = 260;
+            const photoX = W - 200;
+            const photoY = H / 2;
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(photoX, photoY, photoSize / 2, 0, Math.PI * 2);
+            ctx.clip();
+            const srcW = photoImg.width;
+            const srcH = photoImg.height;
+            const scale = Math.max(photoSize / srcW, photoSize / srcH);
+            ctx.drawImage(photoImg, photoX - (srcW * scale) / 2, photoY - (srcH * scale) / 2, srcW * scale, srcH * scale);
+            ctx.restore();
+
+            // Circle border
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.arc(photoX, photoY, photoSize / 2 + 3, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Outer accent ring
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(photoX, photoY, photoSize / 2 + 14, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
+            // Placeholder if no photo
+            const placeholderX = W - 200;
+            const placeholderY = H / 2;
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.beginPath();
+            ctx.arc(placeholderX, placeholderY, 100, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.font = `400 48px ${fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText((name || 'N')[0].toUpperCase(), placeholderX, placeholderY);
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+        }
+
+        ctx.restore(); // Restore diagonal clip
+
+        // Left side content
+        let contentY = 56;
+
+        // Logo (small, top left)
+        if (logoImg) {
+            ctx.save();
+            roundRect(ctx, 56, contentY, 64, 64, 14);
+            ctx.clip();
+            ctx.drawImage(logoImg, 56, contentY, 64, 64);
+            ctx.restore();
+            contentY += 80;
+        }
+
+        // Name (huge, white)
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `800 ${nameSize * 2.4}px ${fontFamily}`;
+        ctx.textBaseline = 'top';
+        ctx.fillText((name || 'NEVED').toUpperCase(), 56, contentY);
+        contentY += nameSize * 2.4 + 8;
+
+        // Business name / tagline with accent underline
+        ctx.fillStyle = color;
+        ctx.font = `600 ${businessSize * 1.6}px ${fontFamily}`;
+        ctx.fillText(businessName || 'Vállalkozás neve', 56, contentY);
+        contentY += businessSize * 1.6 + 16;
+
+        // Accent line
+        ctx.fillStyle = color;
+        roundRect(ctx, 56, contentY, 100, 5, 3);
+        ctx.fill();
+        contentY += 32;
+
+        // Contact details with icon dots
+        ctx.font = `500 24px ${fontFamily}`;
+        const contactItems = [];
+        if (phone) contactItems.push(phone);
+        if (email) contactItems.push(email);
+        if (website) contactItems.push(website);
+
+        contactItems.forEach((text, i) => {
+            const y = contentY + i * 40;
+            // Icon dot
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(70, y + 10, 6, 0, Math.PI * 2);
+            ctx.fill();
+            // Text
+            ctx.fillStyle = '#d1d5db';
+            ctx.fillText(text, 92, y);
+        });
+
+        // QR code (bottom left)
+        if (qrImg) {
+            const qrSize = 110;
+            const qrX = 56;
+            const qrY = H - qrSize - 44;
+            ctx.fillStyle = '#ffffff';
+            roundRect(ctx, qrX - 6, qrY - 6, qrSize + 12, qrSize + 12, 10);
+            ctx.fill();
+            ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+            ctx.fillStyle = '#6b7280';
+            ctx.font = `600 16px ${fontFamily}`;
+            ctx.fillText('Foglalj online', qrX + qrSize + 16, qrY + qrSize / 2 + 5);
+        }
+
+        // Bottom accent line
+        ctx.fillStyle = color;
+        ctx.fillRect(0, H - 8, W, 8);
+        roundRect(ctx, 0, H - 8, W, 8, 32);
+        ctx.fill();
     }
 }
 
@@ -368,7 +503,10 @@ export default function BusinessCardPage() {
     const [nameSize, setNameSize] = useState(48);
     const [businessSize, setBusinessSize] = useState(28);
     const [logoUrl, setLogoUrl] = useState('');
+    const [photoUrl, setPhotoUrl] = useState('');
     const [logoUploading, setLogoUploading] = useState(false);
+    const [photoUploading, setPhotoUploading] = useState(false);
+    const photoInputRef = useRef(null);
     const [downloading, setDownloading] = useState(false);
     const [downloadFormat, setDownloadFormat] = useState(null); // 'png' | 'pdf'
 
@@ -404,13 +542,13 @@ export default function BusinessCardPage() {
         try {
             await drawCard(canvasRef.current, {
                 template,
-                data: { ...cardData, logoUrl, color, bookingUrl, nameSize, businessSize },
+                data: { ...cardData, logoUrl, photoUrl, color, bookingUrl, nameSize, businessSize },
                 fonts: { family: currentFont.family },
             });
         } catch (err) {
             console.error('Draw error:', err);
         }
-    }, [template, cardData, logoUrl, color, bookingUrl, nameSize, businessSize, currentFont]);
+    }, [template, cardData, logoUrl, photoUrl, color, bookingUrl, nameSize, businessSize, currentFont]);
 
     useEffect(() => {
         const timer = setTimeout(redrawCanvas, 100);
@@ -430,6 +568,19 @@ export default function BusinessCardPage() {
         reader.readAsDataURL(file);
     };
 
+    const handlePhotoUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 4 * 1024 * 1024) { alert('A fajl max 4MB lehet!'); return; }
+        setPhotoUploading(true);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            setPhotoUrl(ev.target.result);
+            setPhotoUploading(false);
+        };
+        reader.readAsDataURL(file);
+    };
+
     const handleDownload = async (format) => {
         setDownloading(true);
         setDownloadFormat(format);
@@ -438,7 +589,7 @@ export default function BusinessCardPage() {
             const dlCanvas = document.createElement('canvas');
             await drawCard(dlCanvas, {
                 template,
-                data: { ...cardData, logoUrl, color, bookingUrl, nameSize, businessSize },
+                data: { ...cardData, logoUrl, photoUrl, color, bookingUrl, nameSize, businessSize },
                 fonts: { family: currentFont.family },
             });
 
@@ -500,21 +651,50 @@ export default function BusinessCardPage() {
 
                     {/* Template selection */}
                     <Card title="📐 Sablon">
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                             {TEMPLATES.map(t => (
                                 <button key={t.id} onClick={() => setTemplate(t.id)} style={{
-                                    padding: '12px 8px', borderRadius: 12,
+                                    padding: '12px 6px', borderRadius: 12,
                                     border: template === t.id ? '2px solid var(--primary-500)' : '2px solid var(--gray-100)',
                                     background: template === t.id ? 'var(--primary-50)' : 'white',
                                     cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s',
                                 }}>
                                     <span style={{ fontSize: '1.3rem', display: 'block', marginBottom: 4 }}>{t.preview}</span>
-                                    <span style={{ fontWeight: 700, fontSize: '0.75rem', color: template === t.id ? 'var(--primary-600)' : 'var(--gray-700)' }}>{t.name}</span>
-                                    <span style={{ display: 'block', fontSize: '0.6rem', color: 'var(--gray-400)', marginTop: 2 }}>{t.desc}</span>
+                                    <span style={{ fontWeight: 700, fontSize: '0.7rem', color: template === t.id ? 'var(--primary-600)' : 'var(--gray-700)' }}>{t.name}</span>
+                                    <span style={{ display: 'block', fontSize: '0.55rem', color: 'var(--gray-400)', marginTop: 2 }}>{t.desc}</span>
                                 </button>
                             ))}
                         </div>
                     </Card>
+
+                    {/* Profile photo (for Premium template) */}
+                    {template === 'premium' && (
+                        <Card title="📸 Profilkép">
+                            <p style={{ fontSize: '0.75rem', color: 'var(--gray-400)', marginBottom: 10 }}>Töltsd fel a saját fotódat a kártyához</p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                {photoUrl ? (
+                                    <img src={photoUrl} alt="Profilkép" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: '50%', border: `3px solid ${color}` }} />
+                                ) : (
+                                    <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-400)', fontSize: '1.4rem' }}>👤</div>
+                                )}
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                    <button onClick={() => photoInputRef.current?.click()} style={{
+                                        padding: '7px 14px', borderRadius: 8, border: '1px solid var(--gray-200)',
+                                        background: 'white', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, color: 'var(--gray-700)',
+                                    }}>
+                                        {photoUploading ? '...' : photoUrl ? 'Csere' : 'Feltöltés'}
+                                    </button>
+                                    {photoUrl && (
+                                        <button onClick={() => setPhotoUrl('')} style={{
+                                            padding: '7px 10px', borderRadius: 8, border: '1px solid #fecaca',
+                                            background: '#fef2f2', cursor: 'pointer', fontSize: '0.8rem', color: '#dc2626',
+                                        }}>✕</button>
+                                    )}
+                                </div>
+                            </div>
+                            <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+                        </Card>
+                    )}
 
                     {/* Font style */}
                     <Card title="🔤 Betűstílus">
