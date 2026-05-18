@@ -142,7 +142,7 @@ export default function SettingsPage() {
                     action: 'create-checkout',
                     planName,
                     profileId: profile?.id,
-                    email: profile?.email,
+                    email: user?.email || profile?.email,
                     customerId: profile?.stripe_customer_id,
                 }),
             });

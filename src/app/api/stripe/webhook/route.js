@@ -35,9 +35,37 @@ export async function POST(request) {
         switch (event.type) {
             case 'checkout.session.completed': {
                 const session = event.data.object;
-                const profileId = session.metadata?.profileId;
+                let profileId = session.metadata?.profileId;
                 const planName = session.metadata?.planName;
                 const tier = PLAN_TO_TIER[planName] || 'basic';
+                const customerEmail = session.customer_details?.email || session.customer_email;
+
+                // If no profileId in metadata, find profile by email
+                if (!profileId && customerEmail && supabaseAdmin) {
+                    const { data: foundProfile } = await supabaseAdmin
+                        .from('profiles')
+                        .select('id')
+                        .eq('email', customerEmail)
+                        .maybeSingle();
+
+                    // If not found by email column, try auth.users
+                    if (foundProfile) {
+                        profileId = foundProfile.id;
+                    } else {
+                        // Search through auth users to find by email
+                        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+                        const authUser = users?.find(u => u.email === customerEmail);
+                        if (authUser) {
+                            const { data: prof } = await supabaseAdmin
+                                .from('profiles')
+                                .select('id')
+                                .eq('user_id', authUser.id)
+                                .maybeSingle();
+                            if (prof) profileId = prof.id;
+                        }
+                    }
+                    console.log('Checkout: resolved profileId from email', customerEmail, '->', profileId);
+                }
 
                 if (profileId && supabaseAdmin) {
                     await supabaseAdmin.from('profiles').update({
@@ -45,6 +73,7 @@ export async function POST(request) {
                         stripe_customer_id: session.customer,
                         stripe_subscription_id: session.subscription,
                     }).eq('id', profileId);
+                    console.log('✅ Subscription activated:', { profileId, tier, planName });
 
                     // Also store planName on the Stripe subscription metadata
                     // so customer.subscription.updated can read it on renewals
@@ -55,6 +84,8 @@ export async function POST(request) {
                             });
                         } catch (e) { console.warn('Subscription metadata update failed:', e.message); }
                     }
+                } else {
+                    console.error('❌ Could not find profile for checkout:', { profileId, customerEmail, planName });
                 }
                 break;
             }
