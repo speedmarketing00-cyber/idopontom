@@ -33,7 +33,7 @@ export async function GET(request) {
         // Get all confirmed bookings for tomorrow
         const { data: bookings, error } = await supabaseAdmin
             .from('bookings')
-            .select('*, profiles!bookings_profile_id_fkey(subscription_tier, business_name, name)')
+            .select('*, cancel_token, profiles!bookings_profile_id_fkey(subscription_tier, business_name, name)')
             .eq('status', 'confirmed')
             .eq('booking_date', tomorrowStr);
 
@@ -74,6 +74,7 @@ export async function GET(request) {
             try {
                 const providerName = booking.profiles?.business_name || booking.profiles?.name || 'Szolgáltató';
                 const formattedDate = new Date(booking.booking_date).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' });
+                const cancelUrl = booking.cancel_token ? `https://foglaljvelem.hu/cancel/${booking.cancel_token}` : '';
                 await resend.emails.send({
                     from: 'FoglaljVelem <noreply@foglaljvelem.hu>',
                     to: booking.client_email,
@@ -84,6 +85,7 @@ export async function GET(request) {
                         providerName,
                         date: formattedDate,
                         time: booking.start_time?.slice(0, 5),
+                        cancelUrl,
                     }),
                 });
                 await supabaseAdmin.from('bookings').update({ reminder_24h_sent: true }).eq('id', booking.id);
@@ -101,7 +103,12 @@ export async function GET(request) {
     }
 }
 
-function reminderEmailHtml({ clientName, serviceName, providerName, date, time }) {
+function reminderEmailHtml({ clientName, serviceName, providerName, date, time, cancelUrl }) {
+    const cancelSection = cancelUrl ? `
+    <div style="border-top:1px solid #e5e7eb;margin-top:16px;padding-top:12px;text-align:center;">
+      <p style="color:#9ca3af;font-size:0.75rem;margin:0 0 8px;">Lemondás ma este 20:00-ig lehetséges:</p>
+      <a href="${cancelUrl}" style="color:#dc2626;font-size:0.8rem;text-decoration:underline;">Foglalás lemondása</a>
+    </div>` : '';
     return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f0f7ff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
 <div style="max-width:520px;margin:0 auto;padding:32px 16px;">
@@ -116,6 +123,7 @@ function reminderEmailHtml({ clientName, serviceName, providerName, date, time }
       <p style="margin:10px 0 0;color:#374151;font-size:0.95rem;">📅 ${date} – 🕐 ${time}</p>
     </div>
     <p style="color:#374151;font-size:0.95rem;text-align:center;margin-top:20px;font-weight:500;">Kérlek ne felejtsd el! 🙂</p>
+    ${cancelSection}
   </div>
   <p style="text-align:center;color:#9ca3af;font-size:0.75rem;margin-top:16px;">FoglaljVelem.hu – Online időpontfoglalás</p>
 </div>

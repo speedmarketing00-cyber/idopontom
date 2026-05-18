@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import crypto from 'crypto';
 
 const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
   ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -142,7 +143,10 @@ export async function POST(request) {
       // Use already-resolved service ID
       const serviceId = resolvedServiceId;
 
-      const { error: insertError } = await supabaseAdmin.from('bookings').insert({
+      // Generate unique cancel token
+      const cancelToken = crypto.randomBytes(32).toString('hex');
+
+      const { data: insertedBooking, error: insertError } = await supabaseAdmin.from('bookings').insert({
         profile_id: profileId,
         service_id: serviceId,
         team_member_id: teamMemberId || null,
@@ -156,7 +160,8 @@ export async function POST(request) {
         price: price,
         status: 'confirmed',
         is_group_booking: isGroupSession,
-      });
+        cancel_token: cancelToken,
+      }).select('id, cancel_token').single();
 
       if (insertError) {
         console.error('Booking insert error:', insertError);
@@ -185,6 +190,10 @@ export async function POST(request) {
       }
       console.log('Email settings:', emailSettings);
 
+      // Build cancel link
+      const bookingCancelToken = insertedBooking?.cancel_token || cancelToken;
+      const cancelUrl = `https://foglaljvelem.hu/cancel/${bookingCancelToken}`;
+
       // Send confirmation to client
       if (clientEmail && emailSettings.booking_confirmation) {
         try {
@@ -196,7 +205,7 @@ export async function POST(request) {
             from: 'FoglaljVelem <noreply@foglaljvelem.hu>',
             to: clientEmail,
             subject: `✅ Foglalásod megerősítve – ${providerName}`,
-            html: confirmationEmailHtml({ clientName, serviceName, date, time, duration, price, providerName, customGreeting: greeting }),
+            html: confirmationEmailHtml({ clientName, serviceName, date, time, duration, price, providerName, customGreeting: greeting, cancelUrl }),
           });
           console.log('Confirmation email sent:', result);
         } catch (e) { console.error('Client email error:', e); }
@@ -234,8 +243,15 @@ export async function POST(request) {
 // EMAIL HTML TEMPLATES
 // ============================
 
-function confirmationEmailHtml({ clientName, serviceName, date, time, duration, price, providerName, customGreeting }) {
+function confirmationEmailHtml({ clientName, serviceName, date, time, duration, price, providerName, customGreeting, cancelUrl }) {
   const formattedDate = new Date(date).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' });
+  const cancelSection = cancelUrl ? `
+    <div style="border-top:1px solid #e5e7eb;margin-top:20px;padding-top:16px;">
+      <p style="color:#6b7280;font-size:0.8rem;text-align:center;margin:0 0 10px;">Lemondás az időpont előtti nap 20:00-ig lehetséges:</p>
+      <div style="text-align:center;">
+        <a href="${cancelUrl}" style="display:inline-block;background:#fef2f2;color:#dc2626;text-decoration:none;padding:10px 24px;border-radius:10px;font-weight:600;font-size:0.85rem;border:1px solid #fca5a5;">❌ Foglalás lemondása</a>
+      </div>
+    </div>` : '';
   return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f0f7ff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
 <div style="max-width:520px;margin:0 auto;padding:32px 16px;">
@@ -257,6 +273,7 @@ function confirmationEmailHtml({ clientName, serviceName, date, time, duration, 
       </table>
     </div>
     <p style="color:#6b7280;font-size:0.8rem;text-align:center;margin:0;">Emlékeztetőt küldünk az időpont előtti napon és 1 órával az időpont előtt.</p>
+    ${cancelSection}
   </div>
   <p style="text-align:center;color:#9ca3af;font-size:0.75rem;margin-top:16px;">FoglaljVelem.hu – Online időpontfoglalás</p>
 </div>
