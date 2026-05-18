@@ -247,17 +247,26 @@ async function drawCard(canvas, { template, data, fonts }) {
         const contactParts = [phone, email, website].filter(Boolean);
         ctx.fillText(contactParts.join('  |  '), W / 2, contentY);
 
-        // QR code (bottom right)
+        // QR code (centered)
         if (qrImg) {
-            const qrSize = 160;
+            const qrSize = 220;
+            const qrX = (W - qrSize) / 2;
+            const qrY = contentY + 20;
             ctx.save();
             ctx.shadowColor = 'rgba(0,0,0,0.2)';
             ctx.shadowBlur = 20;
             ctx.fillStyle = '#ffffff';
-            roundRect(ctx, W - qrSize - 60, H - qrSize - 60, qrSize + 32, qrSize + 32, 18);
+            roundRect(ctx, qrX - 16, qrY - 16, qrSize + 32, qrSize + 32, 18);
             ctx.fill();
             ctx.restore();
-            ctx.drawImage(qrImg, W - qrSize - 44, H - qrSize - 44, qrSize, qrSize);
+            ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+            // "Foglalj online" text below QR
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.font = `600 20px ${fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.fillText('Foglalj online!', W / 2, qrY + qrSize + 32);
+            ctx.textAlign = 'left';
         }
 
         // "FoglaljVelem" small watermark
@@ -325,7 +334,7 @@ async function drawCard(canvas, { template, data, fonts }) {
         if (qrImg) {
             const qrSize = 240;
             const qrX = W - qrSize - 100;
-            const qrY = (H - qrSize - 60) / 2;
+            const qrY = (H - qrSize) / 2;
             ctx.strokeStyle = 'rgba(255,255,255,0.08)';
             ctx.lineWidth = 2;
             roundRect(ctx, qrX - 28, qrY - 28, qrSize + 56, qrSize + 76, 20);
@@ -372,47 +381,34 @@ async function drawCard(canvas, { template, data, fonts }) {
         ctx.fillStyle = diagGrad;
         ctx.fillRect(0, 0, W, H);
 
-        // Profile photo in a circle on the right
+        // Profile photo fills the entire diagonal sav
         if (photoImg) {
-            const photoSize = 260;
-            const photoX = W - 200;
-            const photoY = H / 2;
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(photoX, photoY, photoSize / 2, 0, Math.PI * 2);
-            ctx.clip();
             const srcW = photoImg.width;
             const srcH = photoImg.height;
-            const scale = Math.max(photoSize / srcW, photoSize / srcH);
-            ctx.drawImage(photoImg, photoX - (srcW * scale) / 2, photoY - (srcH * scale) / 2, srcW * scale, srcH * scale);
-            ctx.restore();
+            // Cover the diagonal area: figure out bounding box
+            const minX = W * 0.45;
+            const maxX = W;
+            const areaW = maxX - minX;
+            const areaH = H;
+            const scale = Math.max(areaW / srcW, areaH / srcH);
+            const drawW = srcW * scale;
+            const drawH = srcH * scale;
+            const drawX = minX + (areaW - drawW) / 2;
+            const drawY = (areaH - drawH) / 2;
+            ctx.drawImage(photoImg, drawX, drawY, drawW, drawH);
 
-            // Circle border
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 6;
-            ctx.beginPath();
-            ctx.arc(photoX, photoY, photoSize / 2 + 3, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // Outer accent ring
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.arc(photoX, photoY, photoSize / 2 + 14, 0, Math.PI * 2);
-            ctx.stroke();
+            // Subtle dark overlay for depth
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.fillRect(0, 0, W, H);
         } else {
-            // Placeholder if no photo
-            const placeholderX = W - 200;
-            const placeholderY = H / 2;
-            ctx.fillStyle = 'rgba(255,255,255,0.15)';
-            ctx.beginPath();
-            ctx.arc(placeholderX, placeholderY, 100, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            ctx.font = `400 48px ${fontFamily}`;
+            // Placeholder if no photo — large initial letter
+            ctx.fillStyle = 'rgba(255,255,255,0.08)';
+            ctx.fillRect(0, 0, W, H);
+            ctx.fillStyle = 'rgba(255,255,255,0.25)';
+            ctx.font = `800 200px ${fontFamily}`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText((name || 'N')[0].toUpperCase(), placeholderX, placeholderY);
+            ctx.fillText((name || 'N')[0].toUpperCase(), W * 0.75, H / 2);
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
         }

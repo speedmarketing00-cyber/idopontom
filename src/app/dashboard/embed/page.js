@@ -51,9 +51,37 @@ export default function EmbedPage() {
                 </p>
             </div>
 
+            {/* URL Download Section */}
+            <div className={s.contentCard} style={{ padding: 24, marginBottom: 20 }}>
+                <h3 style={{ marginBottom: 4, fontFamily: 'var(--font-display)', fontWeight: 700 }}>📥 Foglalási URL letöltése</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: 16 }}>Töltsd le a foglalási linked szöveges fájlként, vagy másold ki közvetlenül.</p>
+                <div style={{ background: 'var(--primary-50)', borderRadius: 12, padding: 20, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                    <span style={{ fontSize: '2rem' }}>🌐</span>
+                    <div style={{ flex: 1 }}>
+                        <p style={{ fontWeight: 700, color: 'var(--gray-800)', fontSize: '1rem', marginBottom: 2, wordBreak: 'break-all' }}>{bookingUrl}</p>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--gray-500)' }}>Ez az egyedi foglalási oldalad URL címe</p>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button onClick={() => copy('link')} className="btn btn-primary btn-sm">
+                        {copied === 'link' ? '✅ Másolva!' : '📋 Link másolása'}
+                    </button>
+                    <button onClick={() => {
+                        const blob = new Blob([bookingUrl], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'foglalasi-link.txt';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    }} className="btn btn-sm" style={{ background: 'var(--gray-100)', color: 'var(--gray-700)', border: '1px solid var(--gray-200)' }}>
+                        📥 Letöltés (.txt)
+                    </button>
+                </div>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {[
-                    { key: 'link', title: '🔗 Foglalási link', desc: 'Oszd meg közvetlenül az ügyfeleidnek – e-mailben, SMS-ben vagy közösségi médiában.' },
                     { key: 'iframe', title: '📦 Iframe beágyazás', desc: 'Ágyazd be a meglévő weboldaladba. Másold be a kódot a HTML-be.' },
                     { key: 'button', title: '🔘 Foglalás gomb', desc: 'Adj hozzá egy "Időpont foglalás" gombot a weboldaladhoz.' },
                 ].map(item => (
