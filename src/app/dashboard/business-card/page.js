@@ -24,14 +24,28 @@ const PRESET_COLORS = [
 
 // ---- Canvas Drawing Engine ----
 
-async function generateQRDataUrl(text, size, fgColor) {
-    const QRCode = (await import('qrcode')).default;
-    return QRCode.toDataURL(text, {
-        width: size,
-        margin: 0,
-        color: { dark: fgColor || '#000000', light: '#ffffff' },
-        errorCorrectionLevel: 'M',
-    });
+function generateQRCanvas(text, size) {
+    const qrGen = require('qrcode-generator');
+    const qr = qrGen(0, 'M');
+    qr.addData(text);
+    qr.make();
+    const moduleCount = qr.getModuleCount();
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    const cellSize = size / moduleCount;
+    ctx.fillStyle = '#000000';
+    for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+            if (qr.isDark(row, col)) {
+                ctx.fillRect(col * cellSize, row * cellSize, cellSize + 0.5, cellSize + 0.5);
+            }
+        }
+    }
+    return canvas;
 }
 
 function loadImage(src) {
@@ -75,8 +89,7 @@ async function drawCard(canvas, { template, data, fonts }) {
     // Generate QR
     let qrImg = null;
     try {
-        const qrUrl = await generateQRDataUrl(bookingUrl || 'https://foglaljvelem.hu', 400, template === 'bold' ? color : '#1a1a2e');
-        qrImg = await loadImage(qrUrl);
+        qrImg = generateQRCanvas(bookingUrl || 'https://foglaljvelem.hu', 400);
     } catch (e) { console.warn('QR error:', e); }
 
     // Load logo
