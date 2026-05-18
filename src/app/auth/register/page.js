@@ -42,6 +42,7 @@ export default function RegisterPage() {
     const [selectedPlan, setSelectedPlan] = useState('free');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [emailConfirmNeeded, setEmailConfirmNeeded] = useState(false);
     const { signUp, signInWithGoogle } = useAuth();
     const router = useRouter();
 
@@ -91,7 +92,7 @@ export default function RegisterPage() {
         if (form.password.length < 6) { setError('A jelszónak legalább 6 karakter hosszúnak kell lennie!'); return; }
         setLoading(true);
         try {
-            await signUp(form.email, form.password, {
+            const signUpResult = await signUp(form.email, form.password, {
                 name: form.name,
                 phone: form.phone,
                 business_name: form.businessName || form.name,
@@ -101,37 +102,57 @@ export default function RegisterPage() {
             // 🎯 Fire Meta registration event (browser pixel + server CAPI)
             fireRegistrationEvent(form.email);
 
-            // 📧 Registration emails (welcome + admin notification)
+            // 📧 Registration emails — server-side, guaranteed delivery
             try {
-                await fetch('/api/email', {
+                await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        type: 'registration_welcome',
-                        data: { userName: form.name, userEmail: form.email },
-                    }),
-                });
-                await fetch('/api/email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'registration_admin_notify',
-                        data: {
-                            userName: form.name,
-                            userEmail: form.email,
-                            userPhone: form.phone,
-                            businessName: form.businessName || form.name,
-                            businessType: form.businessType,
-                            method: 'email',
-                        },
+                        userName: form.name,
+                        userEmail: form.email,
+                        userPhone: form.phone,
+                        businessName: form.businessName || form.name,
+                        businessType: form.businessType,
+                        method: 'email',
                     }),
                 });
             } catch (e) { console.warn('Registration email error:', e); }
 
+            // Check if email confirmation is required (no session = needs confirmation)
+            const hasSession = !!signUpResult?.session;
+
+            // For paid plans: create Stripe checkout directly
             if (selectedPlan !== 'free') {
-                router.push(`/dashboard/settings?startPlan=${selectedPlan}`);
+                try {
+                    const stripeRes = await fetch('/api/stripe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'create-checkout',
+                            planName: selectedPlan,
+                            email: form.email,
+                        }),
+                    });
+                    const stripeData = await stripeRes.json();
+                    if (stripeData.url) {
+                        window.location.href = stripeData.url;
+                        return;
+                    }
+                } catch (stripeErr) {
+                    console.warn('Stripe checkout error:', stripeErr);
+                }
+            }
+
+            if (hasSession) {
+                // Auto-confirmed or no confirmation needed → go to dashboard
+                if (selectedPlan !== 'free') {
+                    router.push(`/dashboard/settings?startPlan=${selectedPlan}`);
+                } else {
+                    router.push('/dashboard');
+                }
             } else {
-                router.push('/dashboard');
+                // Email confirmation required → show message
+                setEmailConfirmNeeded(true);
             }
         } catch (err) {
             setError(err.message || 'Hiba történt a regisztráció során.');
@@ -145,6 +166,36 @@ export default function RegisterPage() {
         try { await signInWithGoogle(); }
         catch (err) { setError(err.message || 'Google regisztráció sikertelen.'); }
     };
+
+    // Email confirmation screen
+    if (emailConfirmNeeded) {
+        return (
+            <div className={s.authPage}>
+                <div className={s.authBg}>
+                    <div className={s.authBlob1}></div>
+                    <div className={s.authBlob2}></div>
+                </div>
+                <div className={`${s.authCard} animate-scale-in`}>
+                    <div style={{ textAlign: 'center' }}>
+                        <span style={{ fontSize: '3rem', display: 'block', marginBottom: 12 }}>📧</span>
+                        <h1 className={s.authTitle}>Nézd meg az emailedet!</h1>
+                        <p style={{ color: 'var(--gray-600)', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: 20 }}>
+                            Küldtünk egy megerősítő emailt a <strong>{form.email}</strong> címre.
+                            Kattints a linkre az emailben, hogy aktiváld a fiókodat!
+                        </p>
+                        <div style={{ background: 'var(--primary-50)', borderRadius: 12, padding: 16, marginBottom: 20 }}>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--gray-600)', margin: 0 }}>
+                                💡 Ha nem találod az emailt, nézd meg a <strong>spam/promóciók</strong> mappát is!
+                            </p>
+                        </div>
+                        <Link href="/auth/login" className="btn btn-primary" style={{ textDecoration: 'none' }}>
+                            Bejelentkezés →
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={s.authPage}>

@@ -32,29 +32,18 @@ export default function CompleteProfilePage() {
                 name: userName,
             });
 
-            // 📧 Registration emails (welcome + admin notification)
+            // 📧 Registration emails — server-side, guaranteed delivery
             try {
-                await fetch('/api/email', {
+                await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        type: 'registration_welcome',
-                        data: { userName: userName || form.businessName, userEmail },
-                    }),
-                });
-                await fetch('/api/email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'registration_admin_notify',
-                        data: {
-                            userName: userName || form.businessName,
-                            userEmail,
-                            userPhone: form.phone,
-                            businessName: form.businessName,
-                            businessType: form.businessType,
-                            method: 'Google',
-                        },
+                        userName: userName || form.businessName,
+                        userEmail,
+                        userPhone: form.phone,
+                        businessName: form.businessName,
+                        businessType: form.businessType,
+                        method: 'Google',
                     }),
                 });
             } catch (emailErr) { console.warn('Registration email error:', emailErr); }
