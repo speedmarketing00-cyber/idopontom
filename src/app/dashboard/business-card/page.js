@@ -207,73 +207,96 @@ async function drawCard(canvas, { template, data, fonts }) {
         ctx.beginPath(); ctx.arc(W / 2, H + 80, 300, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
 
-        // Logo (centered top)
-        let contentY = 60;
+        // === TOP ROW: Logo + Name + Business name ===
+        const headerY = 48;
+        let headerX = 60;
+        ctx.textBaseline = 'top';
+
         if (logoImg) {
-            const logoSize = 80;
+            const logoSize = 72;
             ctx.save();
             ctx.shadowColor = 'rgba(0,0,0,0.2)';
-            ctx.shadowBlur = 16;
-            roundRect(ctx, W / 2 - logoSize / 2, contentY, logoSize, logoSize, 18);
+            ctx.shadowBlur = 12;
+            roundRect(ctx, headerX, headerY, logoSize, logoSize, 16);
             ctx.clip();
-            ctx.drawImage(logoImg, W / 2 - logoSize / 2, contentY, logoSize, logoSize);
+            ctx.drawImage(logoImg, headerX, headerY, logoSize, logoSize);
             ctx.restore();
-            contentY += logoSize + 20;
+            headerX += logoSize + 20;
         }
 
-        // Business name (top, smaller)
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.font = `700 ${businessSize * 1.6}px ${fontFamily}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillText(businessName || 'Vállalkozás neve', W / 2, contentY);
-        contentY += businessSize * 1.6 + 12;
-
-        // Name (large, centered)
+        // Name (large, next to logo)
         ctx.fillStyle = '#ffffff';
-        ctx.font = `800 ${nameSize * 2.4}px ${fontFamily}`;
-        ctx.fillText(name || 'Neved', W / 2, contentY);
-        contentY += nameSize * 2.4 + 24;
+        ctx.font = `800 ${nameSize * 2}px ${fontFamily}`;
+        ctx.textAlign = 'left';
+        ctx.fillText(name || 'Neved', headerX, headerY - 4);
 
-        // Decorative line
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        roundRect(ctx, W / 2 - 50, contentY, 100, 4, 2);
-        ctx.fill();
-        contentY += 28;
+        // Business name (below name)
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.font = `600 ${businessSize * 1.4}px ${fontFamily}`;
+        ctx.fillText(businessName || 'Vállalkozás neve', headerX, headerY + nameSize * 2 + 6);
 
-        // Contact details (row)
-        ctx.font = `500 24px ${fontFamily}`;
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        const contactParts = [phone, email, website].filter(Boolean);
-        ctx.fillText(contactParts.join('  |  '), W / 2, contentY);
+        // Decorative line under header
+        const lineY = headerY + nameSize * 2 + businessSize * 1.4 + 28;
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.fillRect(60, lineY, W - 120, 2);
 
-        // QR code (centered)
+        // === BOTTOM AREA: QR left + Contact info right ===
+        const bottomY = lineY + 28;
+        const bottomH = H - bottomY - 50;
+
+        // QR code (left side, vertically centered)
         if (qrImg) {
             const qrSize = 220;
-            const qrX = (W - qrSize) / 2;
-            const qrY = contentY + 20;
+            const qrX = 80;
+            const qrY = bottomY + (bottomH - qrSize) / 2;
             ctx.save();
             ctx.shadowColor = 'rgba(0,0,0,0.2)';
             ctx.shadowBlur = 20;
             ctx.fillStyle = '#ffffff';
-            roundRect(ctx, qrX - 16, qrY - 16, qrSize + 32, qrSize + 32, 18);
+            roundRect(ctx, qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 18);
             ctx.fill();
             ctx.restore();
             ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
 
-            // "Foglalj online" text below QR
-            ctx.fillStyle = 'rgba(255,255,255,0.7)';
-            ctx.font = `600 20px ${fontFamily}`;
+            // "Foglalj online" text under QR
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.font = `600 18px ${fontFamily}`;
             ctx.textAlign = 'center';
-            ctx.fillText('Foglalj online!', W / 2, qrY + qrSize + 32);
+            ctx.fillText('Foglalj online!', qrX + qrSize / 2, qrY + qrSize + 24);
             ctx.textAlign = 'left';
         }
 
+        // Contact details (right side)
+        const contactX = 380;
+        let contactY = bottomY + (bottomH - 140) / 2;
+        const contactItems = [];
+        if (phone) contactItems.push({ icon: '☎', text: phone });
+        if (email) contactItems.push({ icon: '✉', text: email });
+        if (website) contactItems.push({ icon: '🌐', text: website });
+
+        contactItems.forEach((item, i) => {
+            const y = contactY + i * 48;
+            // Icon circle
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.beginPath();
+            ctx.arc(contactX + 16, y + 14, 18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `500 20px ${fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.fillText(item.icon, contactX + 16, y + 6);
+            // Text
+            ctx.textAlign = 'left';
+            ctx.fillStyle = 'rgba(255,255,255,0.95)';
+            ctx.font = `500 28px ${fontFamily}`;
+            ctx.fillText(item.text, contactX + 48, y + 2);
+        });
+
         // "FoglaljVelem" small watermark
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.font = `600 18px ${fontFamily}`;
-        ctx.textAlign = 'left';
-        ctx.fillText('foglaljvelem.hu', 48, H - 40);
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = `600 16px ${fontFamily}`;
+        ctx.textAlign = 'right';
+        ctx.fillText('foglaljvelem.hu', W - 48, H - 36);
 
         ctx.textAlign = 'left';
     }
