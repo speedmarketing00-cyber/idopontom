@@ -33,10 +33,10 @@ export default function AuthCallbackPage() {
             }
 
             if (session?.user) {
-                // Check if profile exists
+                // Check if profile exists with required fields
                 const { data: profile } = await supabase
                     .from('profiles')
-                    .select('business_name')
+                    .select('business_name, phone')
                     .eq('user_id', session.user.id)
                     .maybeSingle();
 
@@ -69,7 +69,7 @@ export default function AuthCallbackPage() {
                     }
                 }
 
-                if (profile?.business_name || teamRecord) {
+                if ((profile?.business_name && profile?.phone) || teamRecord) {
                     router.push('/dashboard');
                 } else {
                     router.push('/auth/complete-profile');

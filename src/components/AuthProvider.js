@@ -183,7 +183,8 @@ export function AuthProvider({ children }) {
                 email,
                 password,
                 options: {
-                    data: { name: metadata.name, business_name: metadata.business_name, business_type: metadata.business_type, slug }
+                    data: { name: metadata.name, business_name: metadata.business_name, business_type: metadata.business_type, slug },
+                    emailRedirectTo: `${window.location.origin}/auth/callback`,
                 }
             });
             if (error) throw error;
