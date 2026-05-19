@@ -1,7 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import s from '../auth.module.css';
 
@@ -38,12 +38,55 @@ const PLANS = [
 ];
 
 export default function RegisterPage() {
+    return (
+        <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Betöltés...</div>}>
+            <RegisterForm />
+        </Suspense>
+    );
+}
+
+function RegisterForm() {
     const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', businessName: '', businessType: 'salon' });
     const [selectedPlan, setSelectedPlan] = useState('free');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [couponCode, setCouponCode] = useState('');
+    const [couponValid, setCouponValid] = useState(null);
+    const [couponChecking, setCouponChecking] = useState(false);
     const { signUp, signInWithGoogle } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // URL-ből kuponkód kiolvasás (?ref=KUPONKOD vagy ?coupon=KUPONKOD)
+    useEffect(() => {
+        const ref = searchParams.get('ref') || searchParams.get('coupon');
+        if (ref) {
+            const code = ref.toUpperCase();
+            setCouponCode(code);
+            validateCoupon(code);
+        }
+    }, [searchParams]);
+
+    const validateCoupon = async (code) => {
+        if (!code) return;
+        setCouponChecking(true);
+        try {
+            const res = await fetch(`/api/coupon?code=${encodeURIComponent(code)}`);
+            const data = await res.json();
+            if (res.ok && data.valid) {
+                setCouponValid({ valid: true, coupon: data.coupon });
+                // Mentés localStorage-be (Google OAuth redirect túléléshez)
+                localStorage.setItem('pending_coupon', code);
+            } else {
+                setCouponValid({ valid: false, error: data.error || 'Érvénytelen kuponkód' });
+                localStorage.removeItem('pending_coupon');
+            }
+        } catch {
+            setCouponValid({ valid: false, error: 'Hiba a kupon ellenőrzésekor' });
+        } finally {
+            setCouponChecking(false);
+        }
+    };
 
     const handleChange = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
@@ -126,8 +169,22 @@ export default function RegisterPage() {
                 });
             } catch (e) { console.warn('Registration email error:', e); }
 
+            // 🎟️ Kuponkód alkalmazása (ha érvényes)
+            if (couponValid?.valid && couponCode) {
+                try {
+                    await fetch('/api/coupon', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: couponCode, email: form.email }),
+                    });
+                    localStorage.removeItem('pending_coupon');
+                } catch (e) { console.warn('Coupon apply error:', e); }
+            }
+
+            const trialDays = couponValid?.valid ? couponValid.coupon.trial_days : 14;
+
             if (selectedPlan !== 'free') {
-                router.push(`/dashboard/settings?startPlan=${selectedPlan}`);
+                router.push(`/dashboard/settings?startPlan=${selectedPlan}&trialDays=${trialDays}`);
             } else {
                 router.push('/dashboard');
             }
@@ -140,6 +197,10 @@ export default function RegisterPage() {
 
     const handleGoogleLogin = async () => {
         setError('');
+        // Kuponkód mentése localStorage-be (túléli az OAuth redirectet)
+        if (couponValid?.valid && couponCode) {
+            localStorage.setItem('pending_coupon', couponCode);
+        }
         try { await signInWithGoogle(); }
         catch (err) { setError(err.message || 'Google regisztráció sikertelen.'); }
     };
