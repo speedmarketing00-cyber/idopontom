@@ -150,6 +150,36 @@ export async function POST(request) {
                 return Response.json({ error: updateError.message }, { status: 500 });
             }
 
+            // NAV beküldés ha draft → issued státusz változás
+            if (status === 'issued' && existing.status === 'draft') {
+                const { data: settings } = await supabaseAdmin
+                    .from('invoice_settings')
+                    .select('*')
+                    .eq('profile_id', profileId)
+                    .maybeSingle();
+
+                if (settings?.nav_login && settings?.nav_signing_key) {
+                    // Load full invoice + items for NAV
+                    const [{ data: fullInvoice }, { data: invoiceItems }] = await Promise.all([
+                        supabaseAdmin.from('invoices').select('*').eq('id', invoiceId).single(),
+                        supabaseAdmin.from('invoice_items').select('*').eq('invoice_id', invoiceId).order('sort_order'),
+                    ]);
+
+                    try {
+                        await reportToNav(fullInvoice, invoiceItems || [], settings);
+                        // Jelezzük hogy sikerült
+                        await supabaseAdmin.from('invoices')
+                            .update({ nav_status: 'reported' })
+                            .eq('id', invoiceId);
+                    } catch (navErr) {
+                        console.error('NAV reporting error on status change:', navErr);
+                        await supabaseAdmin.from('invoices')
+                            .update({ nav_status: 'error: ' + navErr.message })
+                            .eq('id', invoiceId);
+                    }
+                }
+            }
+
             return Response.json({ success: true });
         }
 
@@ -341,151 +371,203 @@ function generateInvoiceHtml(invoice, items, settings) {
 // =============================================
 // NAV ONLINE SZÁMLA REPORTING
 // =============================================
-// A nav-connector csomag szükséges: npm install nav-connector
-// Ha nincs telepítve, a NAV beküldés csendben kimarad.
+// @angro/nav-connector v6 — base64 kódolt NAV 3.0 XML szükséges
 async function reportToNav(invoice, items, settings) {
     let NavConnector;
     try {
         NavConnector = (await import('@angro/nav-connector')).default;
     } catch {
-        console.log('nav-connector not installed, skipping NAV reporting');
+        console.log('@angro/nav-connector not installed, skipping NAV reporting');
         return;
     }
 
     const isTest = process.env.NAV_ENV !== 'production';
 
-    const connector = new NavConnector({
-        baseURL: isTest
-            ? 'https://api-test.onlineszamla.nav.gov.hu/invoiceService/v3'
-            : 'https://api.onlineszamla.nav.gov.hu/invoiceService/v3',
-        user: {
-            login: settings.nav_login,
-            password: settings.nav_password,
-            taxNumber: settings.nav_tax_number,
-            sigKey: settings.nav_signing_key,
-            exchangeKey: settings.nav_replacement_key,
-        },
-        software: {
-            id: 'FOGLALJVELEM-INVOICING',
-            name: 'FoglaljVelem Számlázó',
-            type: 'LOCAL_SOFTWARE',
-            mainVersion: '1',
-            devName: 'FoglaljVelem',
-            devContact: 'speedmarketing00@gmail.com',
-        },
-    });
+    // NAV adószám: csak a 8 számjegyű taxpayerId kell a technikai felhasználóhoz
+    const navTaxNumber = (settings.nav_tax_number || '').split('-')[0];
 
-    // Build NAV invoice XML data
-    const vatRateSummary = {};
-    (items || []).forEach(item => {
-        const key = item.vat_rate;
-        if (!vatRateSummary[key]) vatRateSummary[key] = { net: 0, vat: 0, gross: 0 };
-        vatRateSummary[key].net += item.net_amount;
-        vatRateSummary[key].vat += item.vat_amount;
-        vatRateSummary[key].gross += item.gross_amount;
-    });
-
-    const invoiceData = {
-        invoiceNumber: invoice.invoice_number,
-        invoiceIssueDate: invoice.issue_date,
-        completenessIndicator: false,
-        invoiceMain: {
-            invoice: {
-                invoiceHead: {
-                    supplierInfo: {
-                        supplierTaxNumber: {
-                            taxpayerId: settings.tax_number.split('-')[0],
-                            vatCode: settings.tax_number.split('-')[1] || '1',
-                            countyCode: settings.tax_number.split('-')[2] || '00',
-                        },
-                        supplierName: settings.company_name,
-                        supplierAddress: {
-                            simpleAddress: {
-                                countryCode: 'HU',
-                                postalCode: settings.zip_code,
-                                city: settings.city,
-                                additionalAddressDetail: settings.address,
-                            },
-                        },
-                    },
-                    customerInfo: {
-                        ...(invoice.client_tax_number ? {
-                            customerTaxNumber: {
-                                taxpayerId: invoice.client_tax_number.split('-')[0],
-                                vatCode: invoice.client_tax_number.split('-')[1] || '1',
-                                countyCode: invoice.client_tax_number.split('-')[2] || '00',
-                            },
-                        } : {}),
-                        customerName: invoice.client_name,
-                        customerAddress: {
-                            simpleAddress: {
-                                countryCode: invoice.client_country || 'HU',
-                                postalCode: invoice.client_zip || '0000',
-                                city: invoice.client_city || '-',
-                                additionalAddressDetail: invoice.client_address || '-',
-                            },
-                        },
-                    },
-                    invoiceDetail: {
-                        invoiceCategory: 'NORMAL',
-                        invoiceDeliveryDate: invoice.fulfillment_date,
-                        currencyCode: 'HUF',
-                        paymentMethod: invoice.payment_method === 'transfer' ? 'TRANSFER'
-                            : invoice.payment_method === 'cash' ? 'CASH'
-                            : invoice.payment_method === 'card' ? 'CARD'
-                            : 'OTHER',
-                        paymentDate: invoice.due_date,
-                    },
-                },
-                invoiceLines: (items || []).map((item, idx) => ({
-                    lineNumber: idx + 1,
-                    lineDescription: item.description,
-                    quantity: item.quantity,
-                    unitOfMeasure: 'OWN',
-                    unitPrice: item.unit_price,
-                    lineNetAmountData: {
-                        lineNetAmount: item.net_amount,
-                        lineNetAmountHUF: item.net_amount,
-                    },
-                    lineVatRate: item.vat_rate > 0
-                        ? { vatPercentage: item.vat_rate / 100 }
-                        : { vatExemption: { case: 'AAM', reason: 'Alanyi adómentes' } },
-                    lineGrossAmountData: {
-                        lineGrossAmountNormal: item.gross_amount,
-                        lineGrossAmountNormalHUF: item.gross_amount,
-                    },
-                })),
-                invoiceSummary: {
-                    summaryNormal: {
-                        summaryByVatRate: Object.entries(vatRateSummary).map(([rate, sums]) => ({
-                            vatRate: Number(rate) > 0
-                                ? { vatPercentage: Number(rate) / 100 }
-                                : { vatExemption: { case: 'AAM', reason: 'Alanyi adómentes' } },
-                            vatRateNetData: { vatRateNetAmount: sums.net, vatRateNetAmountHUF: sums.net },
-                            vatRateVatData: { vatRateVatAmount: sums.vat, vatRateVatAmountHUF: sums.vat },
-                            vatRateGrossData: { vatRateGrossAmount: sums.gross, vatRateGrossAmountHUF: sums.gross },
-                        })),
-                        invoiceNetAmount: invoice.net_amount,
-                        invoiceNetAmountHUF: invoice.net_amount,
-                        invoiceVatAmount: invoice.vat_amount,
-                        invoiceVatAmountHUF: invoice.vat_amount,
-                        invoiceGrossAmount: invoice.gross_amount,
-                        invoiceGrossAmountHUF: invoice.gross_amount,
-                    },
-                },
-            },
-        },
+    const technicalUser = {
+        login: settings.nav_login,
+        password: settings.nav_password,
+        taxNumber: navTaxNumber,
+        signatureKey: settings.nav_signing_key,
+        exchangeKey: settings.nav_replacement_key,
     };
 
+    const softwareData = {
+        softwareId: 'FOGLALJVELEM01INVOI',
+        softwareName: 'FoglaljVelem Szamlazo',
+        softwareOperation: 'LOCAL_SOFTWARE',
+        softwareMainVersion: '1.0',
+        softwareDevName: 'FoglaljVelem',
+        softwareDevContact: 'info@foglaljvelem.hu',
+        softwareDevCountryCode: 'HU',
+        softwareDevTaxNumber: navTaxNumber,
+    };
+
+    const baseURL = isTest
+        ? 'https://api-test.onlineszamla.nav.gov.hu/invoiceService/v3/'
+        : 'https://api.onlineszamla.nav.gov.hu/invoiceService/v3/';
+
+    const connector = new NavConnector({ technicalUser, softwareData, baseURL });
+
+    // Először teszteljük a kapcsolatot
+    try {
+        await connector.testConnection();
+        console.log('NAV connection test successful');
+    } catch (connErr) {
+        console.error('NAV connection test failed:', connErr?.response?.data || connErr.message);
+        throw new Error('NAV kapcsolat teszt sikertelen: ' + (connErr?.response?.data?.result?.message || connErr.message));
+    }
+
+    // NAV 3.0 InvoiceData XML felépítése
+    const supplierTaxParts = (settings.tax_number || '').split('-');
+    const paymentMethodMap = { transfer: 'TRANSFER', cash: 'CASH', card: 'CARD' };
+    const navPaymentMethod = paymentMethodMap[invoice.payment_method] || 'OTHER';
+
+    // ÁFA összesítő
+    const vatRateSummary = {};
+    (items || []).forEach(item => {
+        const key = String(item.vat_rate || 0);
+        if (!vatRateSummary[key]) vatRateSummary[key] = { net: 0, vat: 0, gross: 0 };
+        vatRateSummary[key].net += Number(item.net_amount || 0);
+        vatRateSummary[key].vat += Number(item.vat_amount || 0);
+        vatRateSummary[key].gross += Number(item.gross_amount || 0);
+    });
+
+    // Számla tételek XML
+    const linesXml = (items || []).map((item, idx) => {
+        const vatRateXml = Number(item.vat_rate) > 0
+            ? `<vatPercentage>${(Number(item.vat_rate) / 100).toFixed(4)}</vatPercentage>`
+            : `<vatExemption><case>AAM</case><reason>Alanyi adómentes</reason></vatExemption>`;
+
+        return `<line>
+            <lineNumber>${idx + 1}</lineNumber>
+            <lineExpressionIndicator>true</lineExpressionIndicator>
+            <lineDescription>${escapeXml(item.description || '')}</lineDescription>
+            <quantity>${Number(item.quantity || 1).toFixed(2)}</quantity>
+            <unitOfMeasure>OWN</unitOfMeasure>
+            <unitPrice>${Number(item.unit_price || 0).toFixed(2)}</unitPrice>
+            <lineNetAmountData>
+                <lineNetAmount>${Number(item.net_amount || 0).toFixed(2)}</lineNetAmount>
+                <lineNetAmountHUF>${Number(item.net_amount || 0).toFixed(2)}</lineNetAmountHUF>
+            </lineNetAmountData>
+            <lineVatRate>${vatRateXml}</lineVatRate>
+            <lineVatData>
+                <lineVatAmount>${Number(item.vat_amount || 0).toFixed(2)}</lineVatAmount>
+                <lineVatAmountHUF>${Number(item.vat_amount || 0).toFixed(2)}</lineVatAmountHUF>
+            </lineVatData>
+            <lineGrossAmountData>
+                <lineGrossAmountNormal>${Number(item.gross_amount || 0).toFixed(2)}</lineGrossAmountNormal>
+                <lineGrossAmountNormalHUF>${Number(item.gross_amount || 0).toFixed(2)}</lineGrossAmountNormalHUF>
+            </lineGrossAmountData>
+        </line>`;
+    }).join('\n');
+
+    // ÁFA összesítő XML
+    const summaryByVatRateXml = Object.entries(vatRateSummary).map(([rate, sums]) => {
+        const vatRateXml = Number(rate) > 0
+            ? `<vatPercentage>${(Number(rate) / 100).toFixed(4)}</vatPercentage>`
+            : `<vatExemption><case>AAM</case><reason>Alanyi adómentes</reason></vatExemption>`;
+
+        return `<summaryByVatRate>
+            <vatRate>${vatRateXml}</vatRate>
+            <vatRateNetData>
+                <vatRateNetAmount>${sums.net.toFixed(2)}</vatRateNetAmount>
+                <vatRateNetAmountHUF>${sums.net.toFixed(2)}</vatRateNetAmountHUF>
+            </vatRateNetData>
+            <vatRateVatData>
+                <vatRateVatAmount>${sums.vat.toFixed(2)}</vatRateVatAmount>
+                <vatRateVatAmountHUF>${sums.vat.toFixed(2)}</vatRateVatAmountHUF>
+            </vatRateVatData>
+        </summaryByVatRate>`;
+    }).join('\n');
+
+    // Ügyfél adószám XML (opcionális)
+    let customerTaxXml = '';
+    if (invoice.client_tax_number) {
+        const clientTaxParts = invoice.client_tax_number.split('-');
+        customerTaxXml = `<customerTaxNumber>
+            <taxpayerId>${clientTaxParts[0] || ''}</taxpayerId>
+            <vatCode>${clientTaxParts[1] || '1'}</vatCode>
+            <countyCode>${clientTaxParts[2] || '00'}</countyCode>
+        </customerTaxNumber>`;
+    }
+
+    // Teljes NAV InvoiceData XML (v3.0 séma)
+    const invoiceXml = `<?xml version="1.0" encoding="UTF-8"?>
+<InvoiceData xmlns="http://schemas.nav.gov.hu/OSA/3.0/data" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <invoiceNumber>${escapeXml(invoice.invoice_number)}</invoiceNumber>
+    <invoiceIssueDate>${invoice.issue_date}</invoiceIssueDate>
+    <completenessIndicator>false</completenessIndicator>
+    <invoiceMain>
+        <invoice>
+            <invoiceHead>
+                <supplierInfo>
+                    <supplierTaxNumber>
+                        <taxpayerId>${supplierTaxParts[0] || navTaxNumber}</taxpayerId>
+                        <vatCode>${supplierTaxParts[1] || '1'}</vatCode>
+                        <countyCode>${supplierTaxParts[2] || '00'}</countyCode>
+                    </supplierTaxNumber>
+                    <supplierName>${escapeXml(settings.company_name || '')}</supplierName>
+                    <supplierAddress>
+                        <simpleAddress>
+                            <countryCode>HU</countryCode>
+                            <postalCode>${escapeXml(settings.zip_code || '0000')}</postalCode>
+                            <city>${escapeXml(settings.city || '-')}</city>
+                            <additionalAddressDetail>${escapeXml(settings.address || '-')}</additionalAddressDetail>
+                        </simpleAddress>
+                    </supplierAddress>
+                </supplierInfo>
+                <customerInfo>
+                    ${customerTaxXml}
+                    <customerName>${escapeXml(invoice.client_name || '')}</customerName>
+                    <customerAddress>
+                        <simpleAddress>
+                            <countryCode>${invoice.client_country || 'HU'}</countryCode>
+                            <postalCode>${escapeXml(invoice.client_zip || '0000')}</postalCode>
+                            <city>${escapeXml(invoice.client_city || '-')}</city>
+                            <additionalAddressDetail>${escapeXml(invoice.client_address || '-')}</additionalAddressDetail>
+                        </simpleAddress>
+                    </customerAddress>
+                </customerInfo>
+                <invoiceDetail>
+                    <invoiceCategory>NORMAL</invoiceCategory>
+                    <invoiceDeliveryDate>${invoice.fulfillment_date}</invoiceDeliveryDate>
+                    <currencyCode>HUF</currencyCode>
+                    <invoiceAppearance>ELECTRONIC</invoiceAppearance>
+                    <paymentMethod>${navPaymentMethod}</paymentMethod>
+                    <paymentDate>${invoice.due_date}</paymentDate>
+                </invoiceDetail>
+            </invoiceHead>
+            <invoiceLines>
+                ${linesXml}
+            </invoiceLines>
+            <invoiceSummary>
+                <summaryNormal>
+                    ${summaryByVatRateXml}
+                </summaryNormal>
+                <summaryGrossData>
+                    <invoiceGrossAmount>${Number(invoice.gross_amount || 0).toFixed(2)}</invoiceGrossAmount>
+                    <invoiceGrossAmountHUF>${Number(invoice.gross_amount || 0).toFixed(2)}</invoiceGrossAmountHUF>
+                </summaryGrossData>
+            </invoiceSummary>
+        </invoice>
+    </invoiceMain>
+</InvoiceData>`;
+
+    // Base64 kódolás (a nav-connector base64 stringet vár)
+    const invoiceBase64 = Buffer.from(invoiceXml, 'utf-8').toString('base64');
+
+    console.log('NAV invoice XML built, sending to NAV...');
+
     const transactionId = await connector.manageInvoice({
-        invoiceOperations: {
-            compressedContent: false,
-            invoiceOperation: [{
-                index: 1,
-                invoiceOperation: 'CREATE',
-                invoiceData: JSON.stringify(invoiceData),
-            }],
-        },
+        compressedContent: false,
+        invoiceOperation: [{
+            index: 1,
+            invoiceOperation: 'CREATE',
+            invoiceData: invoiceBase64,
+        }],
     });
 
     // Save transaction ID
@@ -496,4 +578,14 @@ async function reportToNav(invoice, items, settings) {
     }
 
     console.log('NAV invoice reported, transaction:', transactionId);
+}
+
+// XML special karakter escape
+function escapeXml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
 }
