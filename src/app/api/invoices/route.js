@@ -159,7 +159,6 @@ export async function POST(request) {
                     .maybeSingle();
 
                 if (settings?.nav_login && settings?.nav_signing_key) {
-                    // Load full invoice + items for NAV
                     const [{ data: fullInvoice }, { data: invoiceItems }] = await Promise.all([
                         supabaseAdmin.from('invoices').select('*').eq('id', invoiceId).single(),
                         supabaseAdmin.from('invoice_items').select('*').eq('invoice_id', invoiceId).order('sort_order'),
@@ -167,7 +166,6 @@ export async function POST(request) {
 
                     try {
                         await reportToNav(fullInvoice, invoiceItems || [], settings);
-                        // Jelezzük hogy sikerült
                         await supabaseAdmin.from('invoices')
                             .update({ nav_status: 'reported' })
                             .eq('id', invoiceId);
@@ -176,6 +174,38 @@ export async function POST(request) {
                         await supabaseAdmin.from('invoices')
                             .update({ nav_status: 'error: ' + navErr.message })
                             .eq('id', invoiceId);
+                    }
+                }
+            }
+
+            // NAV sztornó beküldés ha issued/paid → storno státusz változás
+            if (status === 'storno' && (existing.status === 'issued' || existing.status === 'paid')) {
+                const { data: settings } = await supabaseAdmin
+                    .from('invoice_settings')
+                    .select('*')
+                    .eq('profile_id', profileId)
+                    .maybeSingle();
+
+                if (settings?.nav_login && settings?.nav_signing_key) {
+                    const { data: fullInvoice } = await supabaseAdmin
+                        .from('invoices')
+                        .select('*')
+                        .eq('id', invoiceId)
+                        .single();
+
+                    // Csak akkor sztornózunk a NAV-nál, ha korábban sikeresen beküldtük
+                    if (fullInvoice?.nav_transaction_id || fullInvoice?.nav_status === 'reported' || fullInvoice?.nav_status === 'sent') {
+                        try {
+                            await stornoOnNav(fullInvoice, settings);
+                            await supabaseAdmin.from('invoices')
+                                .update({ nav_status: 'storno_sent' })
+                                .eq('id', invoiceId);
+                        } catch (navErr) {
+                            console.error('NAV storno error:', navErr);
+                            await supabaseAdmin.from('invoices')
+                                .update({ nav_status: 'storno_error: ' + navErr.message })
+                                .eq('id', invoiceId);
+                        }
                     }
                 }
             }
@@ -578,6 +608,70 @@ async function reportToNav(invoice, items, settings) {
     }
 
     console.log('NAV invoice reported, transaction:', transactionId);
+}
+
+// =============================================
+// NAV SZTORNÓ BEKÜLDÉS
+// =============================================
+async function stornoOnNav(invoice, settings) {
+    let NavConnector;
+    try {
+        NavConnector = (await import('@angro/nav-connector')).default;
+    } catch {
+        console.log('@angro/nav-connector not installed, skipping NAV storno');
+        return;
+    }
+
+    const isTest = process.env.NAV_ENV !== 'production';
+    const navTaxNumber = (settings.nav_tax_number || '').split('-')[0];
+
+    const technicalUser = {
+        login: settings.nav_login,
+        password: settings.nav_password,
+        taxNumber: navTaxNumber,
+        signatureKey: settings.nav_signing_key,
+        exchangeKey: settings.nav_replacement_key,
+    };
+
+    const softwareData = {
+        softwareId: 'FOGLALJVELEM000001',
+        softwareName: 'FoglaljVelem Szamlazo',
+        softwareOperation: 'LOCAL_SOFTWARE',
+        softwareMainVersion: '1.0',
+        softwareDevName: 'FoglaljVelem',
+        softwareDevContact: 'info@foglaljvelem.hu',
+        softwareDevCountryCode: 'HU',
+        softwareDevTaxNumber: navTaxNumber,
+    };
+
+    const baseURL = isTest
+        ? 'https://api-test.onlineszamla.nav.gov.hu/invoiceService/v3/'
+        : 'https://api.onlineszamla.nav.gov.hu/invoiceService/v3/';
+
+    const connector = new NavConnector({ technicalUser, softwareData, baseURL });
+
+    // NAV technikai érvénytelenítés (annulment) XML
+    const annulmentXml = `<?xml version="1.0" encoding="UTF-8"?>
+<InvoiceAnnulment xmlns="http://schemas.nav.gov.hu/OSA/3.0/annul">
+    <annulmentReference>${escapeXml(invoice.invoice_number)}</annulmentReference>
+    <annulmentTimestamp>${new Date().toISOString()}</annulmentTimestamp>
+    <annulmentCode>ERRATIC_DATA</annulmentCode>
+    <annulmentReason>Szamla sztornozasa - ${escapeXml(invoice.invoice_number)}</annulmentReason>
+</InvoiceAnnulment>`;
+
+    const annulmentBase64 = Buffer.from(annulmentXml, 'utf-8').toString('base64');
+
+    console.log('NAV storno sending for invoice:', invoice.invoice_number);
+
+    const transactionId = await connector.manageAnnulment({
+        annulmentOperation: [{
+            index: 1,
+            annulmentOperation: 'ANNUL',
+            invoiceAnnulment: annulmentBase64,
+        }],
+    });
+
+    console.log('NAV storno sent, transaction:', transactionId);
 }
 
 // XML special karakter escape
