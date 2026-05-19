@@ -344,8 +344,10 @@ export default function InvoicesPage() {
                             <>
                                 <button onClick={() => handleSendEmail(inv)} className="btn btn-secondary btn-sm">📧 Küldés</button>
                                 <button onClick={async () => { await handleStatusChange(inv.id, 'paid'); setView('list'); }} className="btn btn-primary btn-sm">✅ Fizetve</button>
-                                <button onClick={async () => { await handleStatusChange(inv.id, 'storno'); setView('list'); }} className="btn btn-sm" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>Sztornó</button>
                             </>
+                        )}
+                        {(inv.status === 'issued' || inv.status === 'paid') && (
+                            <button onClick={async () => { if (confirm('Biztosan sztornózni szeretnéd ezt a számlát? Ez a művelet nem vonható vissza!')) { await handleStatusChange(inv.id, 'storno'); setView('list'); }}} className="btn btn-sm" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>❌ Sztornó</button>
                         )}
                         {inv.status === 'draft' && (
                             <button onClick={async () => { await handleStatusChange(inv.id, 'issued'); setView('list'); }} className="btn btn-primary btn-sm">🔒 Kiállítás</button>

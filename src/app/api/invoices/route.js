@@ -395,7 +395,7 @@ async function reportToNav(invoice, items, settings) {
     };
 
     const softwareData = {
-        softwareId: 'FOGLALJVELEM01INVOI',
+        softwareId: 'FOGLALJVELEM000001',
         softwareName: 'FoglaljVelem Szamlazo',
         softwareOperation: 'LOCAL_SOFTWARE',
         softwareMainVersion: '1.0',
