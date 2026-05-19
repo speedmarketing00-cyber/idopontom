@@ -576,6 +576,10 @@ async function reportToNav(invoice, items, settings) {
             <invoiceSummary>
                 <summaryNormal>
                     ${summaryByVatRateXml}
+                    <invoiceNetAmount>${Number(invoice.net_amount || 0).toFixed(2)}</invoiceNetAmount>
+                    <invoiceNetAmountHUF>${Number(invoice.net_amount || 0).toFixed(2)}</invoiceNetAmountHUF>
+                    <invoiceVatAmount>${Number(invoice.vat_amount || 0).toFixed(2)}</invoiceVatAmount>
+                    <invoiceVatAmountHUF>${Number(invoice.vat_amount || 0).toFixed(2)}</invoiceVatAmountHUF>
                 </summaryNormal>
                 <summaryGrossData>
                     <invoiceGrossAmount>${Number(invoice.gross_amount || 0).toFixed(2)}</invoiceGrossAmount>
@@ -608,6 +612,33 @@ async function reportToNav(invoice, items, settings) {
     }
 
     console.log('NAV invoice reported, transaction:', transactionId);
+
+    // Tranzakció státusz lekérdezés (pár másodperc múlva, háttérben)
+    setTimeout(async () => {
+        try {
+            const status = await connector.queryTransactionStatus({ transactionId });
+            const processingResults = status?.processingResults?.processingResult;
+            if (processingResults) {
+                const results = Array.isArray(processingResults) ? processingResults : [processingResults];
+                for (const r of results) {
+                    console.log('NAV transaction status:', JSON.stringify(r, null, 2));
+                    if (r.invoiceStatus === 'DONE') {
+                        await supabaseAdmin.from('invoices')
+                            .update({ nav_status: 'reported' })
+                            .eq('id', invoice.id);
+                    } else if (r.invoiceStatus === 'ABORTED') {
+                        const errMsg = r.technicalValidationMessages?.map(m => m.message).join('; ') || 'ABORTED';
+                        console.error('NAV ABORTED:', errMsg);
+                        await supabaseAdmin.from('invoices')
+                            .update({ nav_status: 'error: ' + errMsg.substring(0, 500) })
+                            .eq('id', invoice.id);
+                    }
+                }
+            }
+        } catch (e) {
+            console.log('NAV transaction status query failed (will retry on portal):', e.message);
+        }
+    }, 5000);
 }
 
 // =============================================
