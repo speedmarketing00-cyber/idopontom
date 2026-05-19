@@ -41,15 +41,19 @@ export async function GET(request) {
     if (svc) serviceName = svc.name;
   }
 
-  // Get provider name
+  // Get provider name and slug
   let providerName = 'Szolgáltató';
+  let providerSlug = null;
   if (booking.profile_id) {
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('name, business_name')
+      .select('name, business_name, slug')
       .eq('id', booking.profile_id)
       .maybeSingle();
-    if (profile) providerName = profile.business_name || profile.name || 'Szolgáltató';
+    if (profile) {
+      providerName = profile.business_name || profile.name || 'Szolgáltató';
+      providerSlug = profile.slug;
+    }
   }
 
   // Check if cancellation is still allowed (előző nap 20:00-ig)
@@ -59,11 +63,13 @@ export async function GET(request) {
     booking: {
       id: booking.id,
       clientName: booking.client_name,
+      clientEmail: booking.client_email,
       date: booking.booking_date,
       time: booking.start_time?.slice(0, 5),
       status: booking.status,
       serviceName,
       providerName,
+      providerSlug,
       price: booking.price,
     },
     canCancel,

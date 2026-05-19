@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import s from '../book.module.css';
 
@@ -94,6 +94,12 @@ export default function BookingPage({ params }) {
     const [booked, setBooked] = useState(false);
     const [bookingLoading, setBookingLoading] = useState(false);
     const [bookingError, setBookingError] = useState(null);
+
+    // Modify mode
+    const searchParams = useSearchParams();
+    const modifyToken = searchParams.get('modify');
+    const [modifyBooking, setModifyBooking] = useState(null); // old booking data
+    const [showModifyConfirm, setShowModifyConfirm] = useState(false);
 
     // Step mapping: with team → 1=member, 2=service, 3=date, 4=form; without team → 1=service, 2=date, 3=form
     const STEP_MEMBER = hasTeam ? 1 : -1;
@@ -213,6 +219,25 @@ export default function BookingPage({ params }) {
 
         loadData();
     }, [slug]);
+
+    // Load old booking data if in modify mode
+    useEffect(() => {
+        if (!modifyToken) return;
+        fetch(`/api/booking/cancel?token=${modifyToken}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.error && data.booking) {
+                    setModifyBooking(data.booking);
+                    // Pre-fill form with old booking client data
+                    setForm(prev => ({
+                        ...prev,
+                        name: data.booking.clientName || prev.name,
+                        email: data.booking.clientEmail || prev.email,
+                    }));
+                }
+            })
+            .catch(() => {});
+    }, [modifyToken]);
 
     const today = new Date();
     const viewDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
@@ -354,8 +379,68 @@ export default function BookingPage({ params }) {
         setBookedSlots([...(bookings || []), ...gcalSlots]);
     };
 
+    // Modify mode: show confirm screen first, then call modify API
+    const handleModifyConfirm = async () => {
+        if (!form.name || !form.email || !form.phone) return;
+        setBookingLoading(true);
+        setBookingError(null);
+        try {
+            const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(selectedDate).padStart(2, '0')}`;
+            const res = await fetch('/api/booking/modify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: modifyToken,
+                    newServiceId: svc?.id,
+                    newDate: dateStr,
+                    newTime: selectedTime,
+                    clientName: form.name,
+                    clientEmail: form.email,
+                    clientPhone: form.phone,
+                    notes: form.notes,
+                    slug,
+                }),
+            });
+
+            if (res.status === 409) {
+                setBookingError('Ez az időpont sajnos már foglalt! Kérlek válassz másikat.');
+                setShowModifyConfirm(false);
+                setSelectedTime(null);
+                setStep(STEP_DATE);
+                await refreshBookedSlots();
+                return;
+            }
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                setBookingError(errData.error || 'Hiba történt a módosítás során.');
+                return;
+            }
+
+            setBooked(true);
+            setShowModifyConfirm(false);
+        } catch (err) {
+            console.error('Modify error:', err);
+            setBookingError('Hálózati hiba történt. Kérlek próbáld újra.');
+        } finally {
+            setBookingLoading(false);
+        }
+    };
+
     const handleBook = async () => {
         if (!form.name || !form.email || !form.phone) return;
+
+        // In modify mode, show confirm screen first
+        if (modifyToken && modifyBooking && !showModifyConfirm) {
+            setShowModifyConfirm(true);
+            return;
+        }
+
+        // If in modify mode and confirmed, use modify API
+        if (modifyToken && modifyBooking && showModifyConfirm) {
+            return handleModifyConfirm();
+        }
+
         setBookingLoading(true);
         setBookingError(null);
         try {
@@ -527,6 +612,24 @@ export default function BookingPage({ params }) {
                         </p>
                     )}
                 </div>
+
+                {/* Modify mode top banner */}
+                {!booked && modifyBooking && (
+                    <div style={{
+                        background: '#eff6ff', border: '2px solid #93c5fd', borderRadius: 14,
+                        padding: '14px 18px', marginBottom: 16, textAlign: 'center',
+                    }}>
+                        <div style={{ fontSize: '0.85rem', color: '#1d4ed8', fontWeight: 600 }}>
+                            🔄 Foglalás módosítása
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: 4 }}>
+                            Jelenlegi: <strong>{modifyBooking.serviceName}</strong> – {new Date(modifyBooking.date).toLocaleDateString('hu-HU', { month: 'long', day: 'numeric' })} {modifyBooking.time}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 4 }}>
+                            Válassz új időpontot alább — a régit csak megerősítés után mondjuk le.
+                        </div>
+                    </div>
+                )}
 
                 {!booked && (
                     <div className={s.bookingCard} style={hasCustomTheme ? { background: themeStyles.cardBg, boxShadow: bookingTheme === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : undefined } : undefined}>
@@ -707,10 +810,22 @@ export default function BookingPage({ params }) {
                         )}
 
                         {/* STEP: Form */}
-                        {step === STEP_FORM && (
+                        {step === STEP_FORM && !showModifyConfirm && (
                             <>
                                 <button className={s.backLink} onClick={() => setStep(STEP_DATE)}>← Vissza</button>
-                                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 20 }}>Adataid megadása</h3>
+                                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 20 }}>
+                                    {modifyBooking ? 'Adataid ellenőrzése' : 'Adataid megadása'}
+                                </h3>
+
+                                {/* Modify mode banner */}
+                                {modifyBooking && (
+                                    <div style={{ background: '#eff6ff', borderRadius: 12, padding: 14, border: '1px solid #93c5fd', marginBottom: 16 }}>
+                                        <div style={{ fontSize: '0.8rem', color: '#1d4ed8', fontWeight: 600, marginBottom: 6 }}>🔄 Foglalás módosítása</div>
+                                        <div style={{ fontSize: '0.82rem', color: '#6b7280' }}>
+                                            Jelenlegi: <strong style={{ textDecoration: 'line-through' }}>{modifyBooking.serviceName}</strong> – <span style={{ textDecoration: 'line-through' }}>{new Date(modifyBooking.date).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })} {modifyBooking.time}</span>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div style={{ background: 'var(--primary-50)', borderRadius: 12, padding: 16, marginBottom: 20 }}>
                                     {hasTeam && selectedMemberName && (
@@ -751,7 +866,74 @@ export default function BookingPage({ params }) {
                                 )}
                                 <button onClick={handleBook} className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 20 }}
                                     disabled={!form.name || !form.email || !form.phone || bookingLoading}>
-                                    {bookingLoading ? '⏳ Foglalás folyamatban...' : '📅 Foglalás megerősítése'}
+                                    {modifyBooking ? '🔄 Módosítás áttekintése →' : (bookingLoading ? '⏳ Foglalás folyamatban...' : '📅 Foglalás megerősítése')}
+                                </button>
+                            </>
+                        )}
+
+                        {/* MODIFY CONFIRM SCREEN */}
+                        {step === STEP_FORM && showModifyConfirm && modifyBooking && (
+                            <>
+                                <button className={s.backLink} onClick={() => setShowModifyConfirm(false)}>← Vissza</button>
+                                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 20, textAlign: 'center' }}>
+                                    🔄 Módosítás megerősítése
+                                </h3>
+                                <p style={{ textAlign: 'center', color: 'var(--gray-500)', fontSize: '0.9rem', marginBottom: 20 }}>
+                                    Biztosan módosítod a foglalásod?
+                                </p>
+
+                                {/* Old booking (crossed out) */}
+                                <div style={{ background: '#fef2f2', borderRadius: 12, padding: 16, border: '1px solid #fca5a5', marginBottom: 12 }}>
+                                    <div style={{ fontSize: '0.75rem', color: '#991b1b', fontWeight: 700, marginBottom: 8 }}>❌ RÉGI IDŐPONT:</div>
+                                    <div style={{ textDecoration: 'line-through', color: '#9ca3af' }}>
+                                        <div style={{ fontWeight: 600, marginBottom: 2 }}>{modifyBooking.serviceName}</div>
+                                        <div style={{ fontSize: '0.85rem' }}>
+                                            {new Date(modifyBooking.date).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })} – {modifyBooking.time}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* New booking */}
+                                <div style={{ background: '#f0fdf4', borderRadius: 12, padding: 16, border: '1px solid #86efac', marginBottom: 20 }}>
+                                    <div style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 700, marginBottom: 8 }}>✅ ÚJ IDŐPONT:</div>
+                                    <div style={{ color: '#166534' }}>
+                                        <div style={{ fontWeight: 600, marginBottom: 2 }}>{svc?.name}</div>
+                                        <div style={{ fontSize: '0.85rem' }}>
+                                            {monthName} {selectedDate}. – {selectedTime} • {svc?.duration_minutes} perc
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Client info summary */}
+                                <div style={{ background: 'var(--gray-50)', borderRadius: 12, padding: 14, marginBottom: 20 }}>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--gray-600)' }}>
+                                        👤 {form.name} • 📧 {form.email}
+                                    </div>
+                                </div>
+
+                                {bookingError && (
+                                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: '12px 16px', marginBottom: 16, color: '#991b1b', fontSize: '0.9rem', fontWeight: 500 }}>
+                                        ⚠️ {bookingError}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={handleModifyConfirm}
+                                    className="btn btn-primary btn-lg"
+                                    style={{ width: '100%' }}
+                                    disabled={bookingLoading}
+                                >
+                                    {bookingLoading ? '⏳ Módosítás folyamatban...' : '✅ Igen, módosítom az időpontom!'}
+                                </button>
+                                <button
+                                    onClick={() => setShowModifyConfirm(false)}
+                                    style={{
+                                        width: '100%', marginTop: 10, padding: '12px', borderRadius: 12,
+                                        border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer',
+                                        fontWeight: 600, fontSize: '0.9rem', color: '#6b7280',
+                                    }}
+                                >
+                                    Mégsem, másik időpontot választok
                                 </button>
                             </>
                         )}
@@ -761,9 +943,9 @@ export default function BookingPage({ params }) {
                 {booked && (
                     <div className={s.bookingCard}>
                         <div className={s.confirmBox}>
-                            <div className={s.confirmIcon}>🎉</div>
-                            <h2 className={s.confirmTitle}>Sikeres foglalás!</h2>
-                            <p className={s.confirmDesc}>A foglalásod rögzítve lett. Hamarosan e-mail visszaigazolást kapsz.</p>
+                            <div className={s.confirmIcon}>{modifyBooking ? '🔄' : '🎉'}</div>
+                            <h2 className={s.confirmTitle}>{modifyBooking ? 'Sikeres módosítás!' : 'Sikeres foglalás!'}</h2>
+                            <p className={s.confirmDesc}>{modifyBooking ? 'A foglalásod sikeresen módosítva lett. E-mailben megerősítést küldtünk.' : 'A foglalásod rögzítve lett. Hamarosan e-mail visszaigazolást kapsz.'}</p>
                             <div className={s.summaryList}>
                                 <div className={s.summaryRow}><span className={s.summaryLabel}>Szolgáltatás</span><span className={s.summaryValue}>{svc?.name}</span></div>
                                 <div className={s.summaryRow}><span className={s.summaryLabel}>Dátum</span><span className={s.summaryValue}>{monthName} {selectedDate}.</span></div>

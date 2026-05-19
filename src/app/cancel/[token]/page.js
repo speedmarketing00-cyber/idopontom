@@ -185,7 +185,22 @@ export default function CancelBookingPage() {
               </div>
             ) : (
               <>
-                <div style={{ background: '#fffdf0', borderRadius: 12, padding: 12, border: '1px solid #fde68a', marginBottom: 20 }}>
+                {/* Modify option */}
+                {booking.providerSlug && (
+                  <a
+                    href={`/book/${booking.providerSlug}?modify=${token}`}
+                    style={{
+                      display: 'block', padding: '14px', borderRadius: 12, border: '2px solid #3b82f6',
+                      background: '#eff6ff', color: '#1d4ed8', fontWeight: 700, fontSize: '0.95rem',
+                      textAlign: 'center', textDecoration: 'none', marginBottom: 12,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    🔄 Időpont módosítása
+                  </a>
+                )}
+
+                <div style={{ background: '#fffdf0', borderRadius: 12, padding: 12, border: '1px solid #fde68a', marginBottom: 12 }}>
                   <p style={{ margin: 0, color: '#92400e', fontSize: '0.8rem', textAlign: 'center' }}>
                     ⚠️ A lemondás végleges és nem vonható vissza.
                   </p>

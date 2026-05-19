@@ -346,7 +346,7 @@ function generateInvoiceHtml(invoice, items, settings) {
 async function reportToNav(invoice, items, settings) {
     let NavConnector;
     try {
-        NavConnector = (await import('nav-connector')).default;
+        NavConnector = (await import('@angro/nav-connector')).default;
     } catch {
         console.log('nav-connector not installed, skipping NAV reporting');
         return;
@@ -409,6 +409,13 @@ async function reportToNav(invoice, items, settings) {
                         },
                     },
                     customerInfo: {
+                        ...(invoice.client_tax_number ? {
+                            customerTaxNumber: {
+                                taxpayerId: invoice.client_tax_number.split('-')[0],
+                                vatCode: invoice.client_tax_number.split('-')[1] || '1',
+                                countyCode: invoice.client_tax_number.split('-')[2] || '00',
+                            },
+                        } : {}),
                         customerName: invoice.client_name,
                         customerAddress: {
                             simpleAddress: {
