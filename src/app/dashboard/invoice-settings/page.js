@@ -10,6 +10,7 @@ export default function InvoiceSettingsPage() {
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState('');
+    const [showFields, setShowFields] = useState({}); // { nav_password: true, ... }
     const [form, setForm] = useState({
         company_name: '',
         tax_number: '',
@@ -99,13 +100,30 @@ export default function InvoiceSettingsPage() {
                 {label}
                 {opts.required && <span style={{ color: 'var(--error)', marginLeft: 4 }}>*</span>}
             </label>
-            <input
-                className="input"
-                placeholder={placeholder}
-                value={form[key]}
-                onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-                type={opts.type || 'text'}
-            />
+            <div style={{ position: 'relative' }}>
+                <input
+                    className="input"
+                    placeholder={placeholder}
+                    value={form[key]}
+                    onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                    type={opts.type === 'password' && !showFields[key] ? 'password' : 'text'}
+                    style={opts.type === 'password' ? { paddingRight: 44 } : {}}
+                />
+                {opts.type === 'password' && (
+                    <button
+                        type="button"
+                        onClick={() => setShowFields(p => ({ ...p, [key]: !p[key] }))}
+                        style={{
+                            position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                            background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem',
+                            padding: '4px 6px', borderRadius: 6, color: 'var(--gray-500)',
+                        }}
+                        title={showFields[key] ? 'Elrejtés' : 'Megjelenítés'}
+                    >
+                        {showFields[key] ? '🙈' : '👁️'}
+                    </button>
+                )}
+            </div>
         </div>
     );
 

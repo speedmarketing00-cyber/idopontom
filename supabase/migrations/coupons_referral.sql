@@ -75,5 +75,6 @@ INSERT INTO coupons (code, type, trial_days, max_uses, is_active) VALUES
   ('FODRASZ30', 'trial_extension', 30, NULL, true),
   ('KOZMETIKA30', 'trial_extension', 30, NULL, true),
   ('BARATOMAJANLOTTA', 'trial_extension', 30, NULL, true),
-  ('INGYENES30', 'trial_extension', 30, 100, true)
+  ('INGYENES30', 'trial_extension', 30, 100, true),
+  ('ABIGEL30', 'trial_extension', 30, NULL, true)
 ON CONFLICT (code) DO NOTHING;
