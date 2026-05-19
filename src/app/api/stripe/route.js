@@ -73,11 +73,14 @@ export async function POST(request) {
     }
 
     try {
-        const { action, priceId, planName, profileId, email, customerId } = await request.json();
+        const { action, priceId, planName, profileId, email, customerId, trialDays } = await request.json();
 
         if (action === 'create-checkout') {
             // Get or create the price for this plan
             const resolvedPriceId = priceId || await getOrCreatePrice(planName);
+
+            // Trial napok: kuponnal 30 (vagy más), default 14
+            const effectiveTrialDays = trialDays || 14;
 
             const sessionConfig = {
                 mode: 'subscription',
@@ -86,9 +89,9 @@ export async function POST(request) {
                 success_url: `${request.headers.get('origin')}/dashboard/settings?subscription=success`,
                 cancel_url: `${request.headers.get('origin')}/dashboard/settings?subscription=cancelled`,
                 metadata: { profileId, planName },
-                // 14-day free trial — card required upfront, billing starts after trial
+                // Dinamikus trial — kuponnal hosszabb (pl. 30 nap)
                 subscription_data: {
-                    trial_period_days: 14,
+                    trial_period_days: effectiveTrialDays,
                     metadata: { profileId, planName },
                 },
             };

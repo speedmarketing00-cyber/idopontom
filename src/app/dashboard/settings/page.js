@@ -442,6 +442,41 @@ export default function SettingsPage() {
                 )}
             </div>
 
+            {/* REFERRAL / AJÁNLÁS */}
+            <div className={s.contentCard} style={{ padding: 32, marginBottom: 24 }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 8 }}>🎁 Ajánlsd ismerőseidnek!</h3>
+                <p style={{ fontSize: '0.9rem', color: 'var(--gray-500)', marginBottom: 16, lineHeight: 1.6 }}>
+                    Oszd meg az alábbi linket, és aki ezzel regisztrál, <strong>30 nap ingyenes próbaidőszakot</strong> kap a fizetős csomagokra!
+                </p>
+                {(() => {
+                    const refCode = profile?.referral_code || (profile?.slug ? profile.slug.toUpperCase().replace(/-/g, '').slice(0, 12) : '');
+                    const refLink = `https://foglaljvelem.hu/auth/register?ref=${refCode}`;
+                    return (
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <input
+                                className="input"
+                                readOnly
+                                value={refLink}
+                                onClick={e => e.target.select()}
+                                style={{ flex: 1, minWidth: 200, background: 'var(--gray-50)', fontSize: '0.85rem' }}
+                            />
+                            <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => {
+                                    navigator.clipboard.writeText(refLink);
+                                    alert('Link másolva!');
+                                }}
+                            >
+                                📋 Másolás
+                            </button>
+                        </div>
+                    );
+                })()}
+                <p style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginTop: 12 }}>
+                    Kuponkód: <strong>{profile?.referral_code || (profile?.slug ? profile.slug.toUpperCase().replace(/-/g, '').slice(0, 12) : '-')}</strong>
+                </p>
+            </div>
+
             {/* FEEDBACK */}
             <div className={s.contentCard} style={{ padding: 32, marginBottom: 24 }}>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 8 }}>💬 Visszajelzés</h3>

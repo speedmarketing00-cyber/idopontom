@@ -48,6 +48,19 @@ export default function CompleteProfilePage() {
                 });
             } catch (emailErr) { console.warn('Registration email error:', emailErr); }
 
+            // 🎟️ Kuponkód alkalmazása (localStorage-ból, regisztrációs oldalról mentve)
+            const savedCoupon = typeof window !== 'undefined' ? localStorage.getItem('fv_coupon') : null;
+            if (savedCoupon) {
+                try {
+                    await fetch('/api/coupon', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: savedCoupon, email: userEmail }),
+                    });
+                    localStorage.removeItem('fv_coupon');
+                } catch (e) { console.warn('Coupon apply error:', e); }
+            }
+
             router.push('/dashboard');
         } catch (err) {
             console.error(err);

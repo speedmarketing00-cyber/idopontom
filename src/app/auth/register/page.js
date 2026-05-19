@@ -42,7 +42,6 @@ export default function RegisterPage() {
     const [selectedPlan, setSelectedPlan] = useState('free');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const [emailConfirmNeeded, setEmailConfirmNeeded] = useState(false);
     const { signUp, signInWithGoogle } = useAuth();
     const router = useRouter();
 
@@ -87,12 +86,10 @@ export default function RegisterPage() {
         e.preventDefault();
         setError('');
         if (!form.name || !form.email || !form.password || !form.phone) { setError('Kérlek töltsd ki az összes kötelező mezőt!'); return; }
-        const phoneDigits = form.phone.replace(/\D/g, '');
-        if (phoneDigits.length < 9) { setError('A telefonszámnak legalább 9 számjegyből kell állnia!'); return; }
         if (form.password.length < 6) { setError('A jelszónak legalább 6 karakter hosszúnak kell lennie!'); return; }
         setLoading(true);
         try {
-            const signUpResult = await signUp(form.email, form.password, {
+            await signUp(form.email, form.password, {
                 name: form.name,
                 phone: form.phone,
                 business_name: form.businessName || form.name,
@@ -102,57 +99,37 @@ export default function RegisterPage() {
             // 🎯 Fire Meta registration event (browser pixel + server CAPI)
             fireRegistrationEvent(form.email);
 
-            // 📧 Registration emails — server-side, guaranteed delivery
+            // 📧 Registration emails (welcome + admin notification)
             try {
-                await fetch('/api/auth/register', {
+                await fetch('/api/email', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        userName: form.name,
-                        userEmail: form.email,
-                        userPhone: form.phone,
-                        businessName: form.businessName || form.name,
-                        businessType: form.businessType,
-                        method: 'email',
+                        type: 'registration_welcome',
+                        data: { userName: form.name, userEmail: form.email },
+                    }),
+                });
+                await fetch('/api/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'registration_admin_notify',
+                        data: {
+                            userName: form.name,
+                            userEmail: form.email,
+                            userPhone: form.phone,
+                            businessName: form.businessName || form.name,
+                            businessType: form.businessType,
+                            method: 'email',
+                        },
                     }),
                 });
             } catch (e) { console.warn('Registration email error:', e); }
 
-            // Check if email confirmation is required (no session = needs confirmation)
-            const hasSession = !!signUpResult?.session;
-
-            // For paid plans: create Stripe checkout directly
             if (selectedPlan !== 'free') {
-                try {
-                    const stripeRes = await fetch('/api/stripe', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'create-checkout',
-                            planName: selectedPlan,
-                            email: form.email,
-                        }),
-                    });
-                    const stripeData = await stripeRes.json();
-                    if (stripeData.url) {
-                        window.location.href = stripeData.url;
-                        return;
-                    }
-                } catch (stripeErr) {
-                    console.warn('Stripe checkout error:', stripeErr);
-                }
-            }
-
-            if (hasSession) {
-                // Auto-confirmed or no confirmation needed → go to dashboard
-                if (selectedPlan !== 'free') {
-                    router.push(`/dashboard/settings?startPlan=${selectedPlan}`);
-                } else {
-                    router.push('/dashboard');
-                }
+                router.push(`/dashboard/settings?startPlan=${selectedPlan}`);
             } else {
-                // Email confirmation required → show message
-                setEmailConfirmNeeded(true);
+                router.push('/dashboard');
             }
         } catch (err) {
             setError(err.message || 'Hiba történt a regisztráció során.');
@@ -167,36 +144,6 @@ export default function RegisterPage() {
         catch (err) { setError(err.message || 'Google regisztráció sikertelen.'); }
     };
 
-    // Email confirmation screen
-    if (emailConfirmNeeded) {
-        return (
-            <div className={s.authPage}>
-                <div className={s.authBg}>
-                    <div className={s.authBlob1}></div>
-                    <div className={s.authBlob2}></div>
-                </div>
-                <div className={`${s.authCard} animate-scale-in`}>
-                    <div style={{ textAlign: 'center' }}>
-                        <span style={{ fontSize: '3rem', display: 'block', marginBottom: 12 }}>📧</span>
-                        <h1 className={s.authTitle}>Nézd meg az emailedet!</h1>
-                        <p style={{ color: 'var(--gray-600)', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: 20 }}>
-                            Küldtünk egy megerősítő emailt a <strong>{form.email}</strong> címre.
-                            Kattints a linkre az emailben, hogy aktiváld a fiókodat!
-                        </p>
-                        <div style={{ background: 'var(--primary-50)', borderRadius: 12, padding: 16, marginBottom: 20 }}>
-                            <p style={{ fontSize: '0.85rem', color: 'var(--gray-600)', margin: 0 }}>
-                                💡 Ha nem találod az emailt, nézd meg a <strong>spam/promóciók</strong> mappát is!
-                            </p>
-                        </div>
-                        <Link href="/auth/login" className="btn btn-primary" style={{ textDecoration: 'none' }}>
-                            Bejelentkezés →
-                        </Link>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className={s.authPage}>
             <div className={s.authBg}>
@@ -209,7 +156,7 @@ export default function RegisterPage() {
                     <span className={s.authLogoText}>Foglalj Velem</span>
                 </Link>
                 <h1 className={s.authTitle}>Hozd létre fiókodat! 🚀</h1>
-                <p className={s.authSubtitle}>Válassz csomagot – a fizetős csomagok 14 napig ingyenesek</p>
+                <p className={s.authSubtitle}>Válassz csomagot – a fizetős csomagok {couponValid?.valid ? `${couponValid.coupon.trial_days}` : '14'} napig ingyenesek</p>
                 {error && <div className={s.errorMsg}>{error}</div>}
 
                 {/* Plan selector */}
@@ -247,7 +194,7 @@ export default function RegisterPage() {
 
                 {selectedPlan !== 'free' && (
                     <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: '0.82rem', color: '#92400e' }}>
-                        💳 A <strong>{PLANS.find(p => p.id === selectedPlan)?.name}</strong> csomagnál kártyaadatot kell megadni, de az első 14 napban <strong>nem vonódik le semmi</strong>. Bármikor lemondható.
+                        💳 A <strong>{PLANS.find(p => p.id === selectedPlan)?.name}</strong> csomagnál kártyaadatot kell megadni, de az első {couponValid?.valid ? couponValid.coupon.trial_days : 14} napban <strong>nem vonódik le semmi</strong>. Bármikor lemondható.
                     </div>
                 )}
 
@@ -274,9 +221,7 @@ export default function RegisterPage() {
                     <div className={s.authRow}>
                         <div className="input-group">
                             <label className="input-label">Telefonszám *</label>
-                            <input type="tel" className="input" placeholder="+36 30 123 4567" value={form.phone}
-                                onChange={e => { const v = e.target.value.replace(/[^\d+\s()-]/g, ''); setForm(p => ({ ...p, phone: v })); }}
-                                required />
+                            <input type="tel" className="input" placeholder="+36 30 123 4567" value={form.phone} onChange={handleChange('phone')} required />
                         </div>
                         <div className="input-group">
                             <label className="input-label">Vállalkozás neve <span style={{ color: 'var(--gray-400)', fontWeight: 400, fontSize: '0.8rem' }}>(opcionális)</span></label>
@@ -298,8 +243,45 @@ export default function RegisterPage() {
                         <label className="input-label">Jelszó *</label>
                         <input type="password" className="input" placeholder="Min. 6 karakter" value={form.password} onChange={handleChange('password')} required />
                     </div>
+
+                    {/* Kuponkód mező */}
+                    <div className="input-group">
+                        <label className="input-label">
+                            Kuponkód <span style={{ color: 'var(--gray-400)', fontWeight: 400, fontSize: '0.8rem' }}>(opcionális)</span>
+                        </label>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <input
+                                type="text"
+                                className="input"
+                                placeholder="pl. FODRASZ30"
+                                value={couponCode}
+                                onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponValid(null); }}
+                                style={{ flex: 1, textTransform: 'uppercase' }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => validateCoupon(couponCode)}
+                                disabled={couponChecking || !couponCode}
+                                className="btn btn-secondary"
+                                style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}
+                            >
+                                {couponChecking ? '...' : 'Ellenőrzés'}
+                            </button>
+                        </div>
+                        {couponValid?.valid && (
+                            <div style={{ marginTop: 6, padding: '8px 12px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, fontSize: '0.82rem', color: '#166534' }}>
+                                🎉 Kupon elfogadva! <strong>{couponValid.coupon.trial_days} nap ingyenes próbaidőszak</strong> a fizetős csomagokra.
+                            </div>
+                        )}
+                        {couponValid && !couponValid.valid && (
+                            <div style={{ marginTop: 6, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: '0.82rem', color: '#991b1b' }}>
+                                ❌ {couponValid.error || 'Érvénytelen kuponkód'}
+                            </div>
+                        )}
+                    </div>
+
                     <button type="submit" className={`btn btn-primary ${s.authSubmitBtn}`} disabled={loading}>
-                        {loading ? 'Fiók létrehozása...' : selectedPlan === 'free' ? 'Ingyenes regisztráció →' : `Regisztráció és 14 napos trial →`}
+                        {loading ? 'Fiók létrehozása...' : selectedPlan === 'free' ? 'Ingyenes regisztráció →' : couponValid?.valid ? `Regisztráció és ${couponValid.coupon.trial_days} napos trial →` : 'Regisztráció és 14 napos trial →'}
                     </button>
                     <p style={{ fontSize: '0.75rem', color: 'var(--gray-400)', textAlign: 'center', marginTop: 8 }}>
                         A regisztrációval elfogadod az <Link href="/aszf" style={{ color: 'var(--primary-500)' }}>ÁSZF</Link>-et és az <Link href="/adatvedelem" style={{ color: 'var(--primary-500)' }}>Adatvédelmi tájékoztatót</Link>.
