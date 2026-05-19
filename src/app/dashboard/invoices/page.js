@@ -55,6 +55,11 @@ export default function InvoicesPage() {
     const [createError, setCreateError] = useState('');
     const [createLoading, setCreateLoading] = useState(false);
 
+    // Ügyfél autocomplete
+    const [savedClients, setSavedClients] = useState([]);
+    const [clientSuggestions, setClientSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+
     useEffect(() => {
         if (!profile?.id) return;
         loadInvoices();
@@ -79,6 +84,62 @@ export default function InvoicesPage() {
             .eq('profile_id', profile.id)
             .maybeSingle();
         setSettings(data);
+    };
+
+    // Korábbi ügyfelek betöltése a számlákból
+    const loadSavedClients = async () => {
+        const { data } = await supabase
+            .from('invoices')
+            .select('client_name, client_tax_number, client_address, client_city, client_zip, client_email, client_country')
+            .eq('profile_id', profile.id)
+            .order('created_at', { ascending: false });
+        if (!data) return;
+        // Deduplikálás név alapján (legfrissebb adatok maradnak)
+        const map = new Map();
+        data.forEach(inv => {
+            if (inv.client_name && !map.has(inv.client_name)) {
+                map.set(inv.client_name, {
+                    client_name: inv.client_name,
+                    client_tax_number: inv.client_tax_number || '',
+                    client_address: inv.client_address || '',
+                    client_city: inv.client_city || '',
+                    client_zip: inv.client_zip || '',
+                    client_email: inv.client_email || '',
+                    client_country: inv.client_country || 'HU',
+                });
+            }
+        });
+        setSavedClients(Array.from(map.values()));
+    };
+
+    useEffect(() => {
+        if (profile?.id && view === 'create') loadSavedClients();
+    }, [profile?.id, view]);
+
+    const handleClientNameChange = (value) => {
+        setForm(p => ({ ...p, client_name: value }));
+        if (value.length >= 2) {
+            const matches = savedClients.filter(c =>
+                c.client_name.toLowerCase().includes(value.toLowerCase())
+            );
+            setClientSuggestions(matches);
+            setShowSuggestions(matches.length > 0);
+        } else {
+            setShowSuggestions(false);
+        }
+    };
+
+    const selectClient = (client) => {
+        setForm(p => ({
+            ...p,
+            client_name: client.client_name,
+            client_tax_number: client.client_tax_number,
+            client_address: client.client_address,
+            client_city: client.client_city,
+            client_zip: client.client_zip,
+            client_email: client.client_email,
+        }));
+        setShowSuggestions(false);
     };
 
     // Calculate item totals
@@ -466,9 +527,43 @@ export default function InvoicesPage() {
             <div className={s.contentCard} style={{ padding: 28, marginBottom: 20 }}>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 16 }}>👤 Vevő adatai</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-                    <div className="input-group">
+                    <div className="input-group" style={{ position: 'relative' }}>
                         <label className="input-label">Név <span style={{ color: 'var(--error)' }}>*</span></label>
-                        <input className="input" placeholder="Ügyfél neve" value={form.client_name} onChange={e => setForm(p => ({ ...p, client_name: e.target.value }))} />
+                        <input
+                            className="input"
+                            placeholder="Ügyfél neve"
+                            value={form.client_name}
+                            onChange={e => handleClientNameChange(e.target.value)}
+                            onFocus={() => { if (form.client_name.length >= 2) handleClientNameChange(form.client_name); }}
+                            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                            autoComplete="off"
+                        />
+                        {showSuggestions && clientSuggestions.length > 0 && (
+                            <div style={{
+                                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                                background: 'white', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+                                border: '1px solid var(--gray-200)', maxHeight: 200, overflowY: 'auto', marginTop: 4,
+                            }}>
+                                {clientSuggestions.map((client, i) => (
+                                    <div
+                                        key={i}
+                                        onMouseDown={() => selectClient(client)}
+                                        style={{
+                                            padding: '10px 14px', cursor: 'pointer',
+                                            borderBottom: i < clientSuggestions.length - 1 ? '1px solid var(--gray-100)' : 'none',
+                                            transition: 'background 0.15s',
+                                        }}
+                                        onMouseEnter={e => e.target.style.background = 'var(--gray-50)'}
+                                        onMouseLeave={e => e.target.style.background = 'white'}
+                                    >
+                                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{client.client_name}</div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>
+                                            {[client.client_tax_number, client.client_city, client.client_email].filter(Boolean).join(' · ')}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div className="input-group">
                         <label className="input-label">Adószám</label>
