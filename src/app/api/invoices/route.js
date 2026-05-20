@@ -101,14 +101,15 @@ export async function POST(request) {
 
             // NAV Online Számla beküldés (ha kiállított és van NAV konfig)
             if (invoice.status === 'issued' && settings.nav_login && settings.nav_signing_key) {
+                await supabaseAdmin.from('invoices')
+                    .update({ nav_status: 'pending' })
+                    .eq('id', newInvoice.id);
                 try {
                     await reportToNav(newInvoice, items, settings);
                 } catch (navErr) {
                     console.error('NAV reporting error:', navErr);
-                    // NAV hiba nem akadályozza a számla létrehozását,
-                    // de jelezzük a státuszban
                     await supabaseAdmin.from('invoices')
-                        .update({ nav_status: 'error: ' + navErr.message })
+                        .update({ nav_status: 'retry_needed: ' + navErr.message.substring(0, 400) })
                         .eq('id', newInvoice.id);
                 }
             }
@@ -159,6 +160,10 @@ export async function POST(request) {
                     .maybeSingle();
 
                 if (settings?.nav_login && settings?.nav_signing_key) {
+                    await supabaseAdmin.from('invoices')
+                        .update({ nav_status: 'pending' })
+                        .eq('id', invoiceId);
+
                     const [{ data: fullInvoice }, { data: invoiceItems }] = await Promise.all([
                         supabaseAdmin.from('invoices').select('*').eq('id', invoiceId).single(),
                         supabaseAdmin.from('invoice_items').select('*').eq('invoice_id', invoiceId).order('sort_order'),
@@ -172,7 +177,7 @@ export async function POST(request) {
                     } catch (navErr) {
                         console.error('NAV reporting error on status change:', navErr);
                         await supabaseAdmin.from('invoices')
-                            .update({ nav_status: 'error: ' + navErr.message })
+                            .update({ nav_status: 'retry_needed: ' + navErr.message.substring(0, 400) })
                             .eq('id', invoiceId);
                     }
                 }
@@ -193,7 +198,6 @@ export async function POST(request) {
                         .eq('id', invoiceId)
                         .single();
 
-                    // Csak akkor sztornózunk a NAV-nál, ha korábban sikeresen beküldtük
                     if (fullInvoice?.nav_transaction_id || fullInvoice?.nav_status === 'reported' || fullInvoice?.nav_status === 'sent') {
                         try {
                             await stornoOnNav(fullInvoice, settings);
@@ -203,7 +207,7 @@ export async function POST(request) {
                         } catch (navErr) {
                             console.error('NAV storno error:', navErr);
                             await supabaseAdmin.from('invoices')
-                                .update({ nav_status: 'storno_error: ' + navErr.message })
+                                .update({ nav_status: 'storno_retry: ' + navErr.message.substring(0, 400) })
                                 .eq('id', invoiceId);
                         }
                     }
@@ -402,18 +406,9 @@ function generateInvoiceHtml(invoice, items, settings) {
 // NAV ONLINE SZÁMLA REPORTING
 // =============================================
 // @angro/nav-connector v6 — base64 kódolt NAV 3.0 XML szükséges
-async function reportToNav(invoice, items, settings) {
-    let NavConnector;
-    try {
-        NavConnector = (await import('@angro/nav-connector')).default;
-    } catch {
-        console.log('@angro/nav-connector not installed, skipping NAV reporting');
-        return;
-    }
 
+function createNavConnector(NavConnector, settings) {
     const isTest = process.env.NAV_ENV !== 'production';
-
-    // NAV adószám: csak a 8 számjegyű taxpayerId kell a technikai felhasználóhoz
     const navTaxNumber = (settings.nav_tax_number || '').split('-')[0];
 
     const technicalUser = {
@@ -439,18 +434,46 @@ async function reportToNav(invoice, items, settings) {
         ? 'https://api-test.onlineszamla.nav.gov.hu/invoiceService/v3/'
         : 'https://api.onlineszamla.nav.gov.hu/invoiceService/v3/';
 
-    const connector = new NavConnector({ technicalUser, softwareData, baseURL });
+    return { connector: new NavConnector({ technicalUser, softwareData, baseURL }), navTaxNumber };
+}
 
-    // Először teszteljük a kapcsolatot
+async function withRetry(fn, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            const isRetryable = err.message?.includes('ETIMEDOUT') || err.message?.includes('ECONNREFUSED')
+                || err.message?.includes('ECONNRESET') || err.message?.includes('ENOTFOUND')
+                || err.message?.includes('socket hang up') || err.code === 'ETIMEDOUT';
+            if (!isRetryable || attempt === maxRetries) throw err;
+            const delay = attempt * 3000;
+            console.log(`NAV retry ${attempt}/${maxRetries}, waiting ${delay}ms...`);
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
+}
+
+async function reportToNav(invoice, items, settings) {
+    let NavConnector;
     try {
-        await connector.testConnection();
-        console.log('NAV connection test successful');
-    } catch (connErr) {
-        console.error('NAV connection test failed:', connErr?.response?.data || connErr.message);
-        throw new Error('NAV kapcsolat teszt sikertelen: ' + (connErr?.response?.data?.result?.message || connErr.message));
+        NavConnector = (await import('@angro/nav-connector')).default;
+    } catch {
+        console.log('@angro/nav-connector not installed, skipping NAV reporting');
+        return;
     }
 
-    // NAV 3.0 InvoiceData XML felépítése
+    const { connector, navTaxNumber } = createNavConnector(NavConnector, settings);
+
+    await withRetry(async () => {
+        try {
+            await connector.testConnection();
+            console.log('NAV connection test successful');
+        } catch (connErr) {
+            console.error('NAV connection test failed:', connErr?.response?.data || connErr.message);
+            throw new Error('NAV kapcsolat teszt sikertelen: ' + (connErr?.response?.data?.result?.message || connErr.message));
+        }
+    });
+
     const supplierTaxParts = (settings.tax_number || '').split('-');
     const paymentMethodMap = { transfer: 'TRANSFER', cash: 'CASH', card: 'CARD' };
     const navPaymentMethod = paymentMethodMap[invoice.payment_method] || 'OTHER';
@@ -595,14 +618,14 @@ async function reportToNav(invoice, items, settings) {
 
     console.log('NAV invoice XML built, sending to NAV...');
 
-    const transactionId = await connector.manageInvoice({
+    const transactionId = await withRetry(() => connector.manageInvoice({
         compressedContent: false,
         invoiceOperation: [{
             index: 1,
             invoiceOperation: 'CREATE',
             invoiceData: invoiceBase64,
         }],
-    });
+    }));
 
     // Save transaction ID
     if (transactionId && supabaseAdmin) {
@@ -653,35 +676,7 @@ async function stornoOnNav(invoice, settings) {
         return;
     }
 
-    const isTest = process.env.NAV_ENV !== 'production';
-    const navTaxNumber = (settings.nav_tax_number || '').split('-')[0];
-
-    const technicalUser = {
-        login: settings.nav_login,
-        password: settings.nav_password,
-        taxNumber: navTaxNumber,
-        signatureKey: settings.nav_signing_key,
-        exchangeKey: settings.nav_replacement_key,
-    };
-
-    const softwareData = {
-        softwareId: 'FOGLALJVELEM000001',
-        softwareName: 'FoglaljVelem Szamlazo',
-        softwareOperation: 'LOCAL_SOFTWARE',
-        softwareMainVersion: '1.0',
-        softwareDevName: 'FoglaljVelem',
-        softwareDevContact: 'info@foglaljvelem.hu',
-        softwareDevCountryCode: 'HU',
-        softwareDevTaxNumber: navTaxNumber,
-    };
-
-    const baseURL = isTest
-        ? 'https://api-test.onlineszamla.nav.gov.hu/invoiceService/v3/'
-        : 'https://api.onlineszamla.nav.gov.hu/invoiceService/v3/';
-
-    const connector = new NavConnector({ technicalUser, softwareData, baseURL });
-
-    // NAV technikai érvénytelenítés (annulment) XML
+    const { connector } = createNavConnector(NavConnector, settings);
     const annulmentXml = `<?xml version="1.0" encoding="UTF-8"?>
 <InvoiceAnnulment xmlns="http://schemas.nav.gov.hu/OSA/3.0/annul">
     <annulmentReference>${escapeXml(invoice.invoice_number)}</annulmentReference>
@@ -694,13 +689,13 @@ async function stornoOnNav(invoice, settings) {
 
     console.log('NAV storno sending for invoice:', invoice.invoice_number);
 
-    const transactionId = await connector.manageAnnulment({
+    const transactionId = await withRetry(() => connector.manageAnnulment({
         annulmentOperation: [{
             index: 1,
             annulmentOperation: 'ANNUL',
             invoiceAnnulment: annulmentBase64,
         }],
-    });
+    }));
 
     console.log('NAV storno sent, transaction:', transactionId);
 }
