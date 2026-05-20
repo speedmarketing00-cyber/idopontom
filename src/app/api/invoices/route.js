@@ -217,6 +217,40 @@ export async function POST(request) {
             return Response.json({ success: true });
         }
 
+        // ===================== QUERY NAV TRANSACTION STATUS =====================
+        if (action === 'query-nav-status') {
+            const { invoiceId } = body;
+
+            const { data: invoice } = await supabaseAdmin
+                .from('invoices')
+                .select('*')
+                .eq('id', invoiceId)
+                .eq('profile_id', profileId)
+                .single();
+
+            if (!invoice?.nav_transaction_id) {
+                return Response.json({ error: 'Nincs NAV tranzakció ehhez a számlához' }, { status: 400 });
+            }
+
+            const { data: settings } = await supabaseAdmin
+                .from('invoice_settings')
+                .select('*')
+                .eq('profile_id', profileId)
+                .maybeSingle();
+
+            let NavConnector;
+            try {
+                NavConnector = (await import('@angro/nav-connector')).default;
+            } catch {
+                return Response.json({ error: 'nav-connector not installed' }, { status: 500 });
+            }
+
+            const { connector } = createNavConnector(NavConnector, settings);
+            const status = await connector.queryTransactionStatus({ transactionId: invoice.nav_transaction_id });
+
+            return Response.json({ transactionId: invoice.nav_transaction_id, status });
+        }
+
         // ===================== GENERATE PDF (HTML) =====================
         if (action === 'generate-pdf') {
             const { invoiceId } = body;
