@@ -126,6 +126,7 @@ export async function GET(request) {
             <lineDescription>${escapeXml(item.description || '')}</lineDescription>
             <quantity>${Number(item.quantity || 1).toFixed(2)}</quantity>
             <unitOfMeasure>OWN</unitOfMeasure>
+            <unitOfMeasureOwn>${escapeXml(item.unit || 'db')}</unitOfMeasureOwn>
             <unitPrice>${Number(item.unit_price || 0).toFixed(2)}</unitPrice>
             <lineAmountsNormal>
                 <lineNetAmountData>
@@ -174,7 +175,7 @@ export async function GET(request) {
                         </customerTaxNumber>
                     </customerVatData>`;
                 } else {
-                    customerVatXml = `<customerVatStatus>PRIVATE_PERSON</customerVatStatus>`;
+                    customerVatXml = `<customerVatStatus>OTHER</customerVatStatus>`;
                 }
 
                 const invoiceXml = `<?xml version="1.0" encoding="UTF-8"?>

@@ -534,6 +534,7 @@ async function reportToNav(invoice, items, settings) {
             <lineDescription>${escapeXml(item.description || '')}</lineDescription>
             <quantity>${Number(item.quantity || 1).toFixed(2)}</quantity>
             <unitOfMeasure>OWN</unitOfMeasure>
+            <unitOfMeasureOwn>${escapeXml(item.unit || 'db')}</unitOfMeasureOwn>
             <unitPrice>${Number(item.unit_price || 0).toFixed(2)}</unitPrice>
             <lineAmountsNormal>
                 <lineNetAmountData>
@@ -585,7 +586,7 @@ async function reportToNav(invoice, items, settings) {
                         </customerTaxNumber>
                     </customerVatData>`;
     } else {
-        customerVatXml = `<customerVatStatus>PRIVATE_PERSON</customerVatStatus>`;
+        customerVatXml = `<customerVatStatus>OTHER</customerVatStatus>`;
     }
 
     // Teljes NAV InvoiceData XML (v3.0 séma)
