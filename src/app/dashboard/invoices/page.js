@@ -26,7 +26,14 @@ const VAT_OPTIONS = [
     { value: 0, label: '0% (Mentes)' },
 ];
 
-const emptyItem = () => ({ description: '', quantity: 1, unit: 'db', unit_price: 0, vat_rate: 27 });
+const getDefaultVatRate = () => {
+    if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('invoice_default_vat_rate');
+        if (saved !== null) return Number(saved);
+    }
+    return 27;
+};
+const emptyItem = () => ({ description: '', quantity: 1, unit: 'db', unit_price: 0, vat_rate: getDefaultVatRate() });
 
 export default function InvoicesPage() {
     const { profile } = useAuth();
@@ -155,10 +162,16 @@ export default function InvoicesPage() {
     }, { net: 0, vat: 0, gross: 0 });
 
     const updateItem = (idx, key, value) => {
+        if (key === 'vat_rate') {
+            localStorage.setItem('invoice_default_vat_rate', String(value));
+        }
         setItems(prev => prev.map((item, i) => i === idx ? { ...item, [key]: value } : item));
     };
 
-    const addItem = () => setItems(prev => [...prev, emptyItem()]);
+    const addItem = () => setItems(prev => {
+        const lastVat = prev.length > 0 ? prev[prev.length - 1].vat_rate : 27;
+        return [...prev, { ...emptyItem(), vat_rate: lastVat }];
+    });
     const removeItem = (idx) => setItems(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
 
     const handleCreate = async (asDraft = false) => {
