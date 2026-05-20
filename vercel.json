@@ -13,7 +13,7 @@
         },
         {
             "path": "/api/cron/nav-retry",
-            "schedule": "*/15 * * * *"
+            "schedule": "0 6 * * *"
         }
     ]
 }
