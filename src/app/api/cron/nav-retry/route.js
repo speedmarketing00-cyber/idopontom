@@ -218,9 +218,9 @@ export async function GET(request) {
                     <invoiceDeliveryDate>${invoice.fulfillment_date}</invoiceDeliveryDate>
                     <currencyCode>HUF</currencyCode>
                     <exchangeRate>1</exchangeRate>
-                    <invoiceAppearance>ELECTRONIC</invoiceAppearance>
                     <paymentMethod>${navPaymentMethod}</paymentMethod>
                     <paymentDate>${invoice.due_date}</paymentDate>
+                    <invoiceAppearance>ELECTRONIC</invoiceAppearance>
                 </invoiceDetail>
             </invoiceHead>
             <invoiceLines>
