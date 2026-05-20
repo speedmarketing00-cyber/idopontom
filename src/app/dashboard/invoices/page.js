@@ -67,6 +67,11 @@ export default function InvoicesPage() {
     const [clientSuggestions, setClientSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
 
+    // Termék/szolgáltatás autocomplete
+    const [savedProducts, setSavedProducts] = useState([]);
+    const [productSuggestions, setProductSuggestions] = useState([]);
+    const [activeProductIdx, setActiveProductIdx] = useState(null);
+
     useEffect(() => {
         if (!profile?.id) return;
         loadInvoices();
@@ -119,9 +124,58 @@ export default function InvoicesPage() {
         setSavedClients(Array.from(map.values()));
     };
 
+    // Korábbi termékek/szolgáltatások betöltése
+    const loadSavedProducts = async () => {
+        const { data } = await supabase
+            .from('invoice_items')
+            .select('description, unit_price, unit, vat_rate, invoice_id, invoices!inner(profile_id)')
+            .eq('invoices.profile_id', profile.id)
+            .order('created_at', { ascending: false });
+        if (!data) return;
+        const map = new Map();
+        data.forEach(item => {
+            if (item.description && !map.has(item.description)) {
+                map.set(item.description, {
+                    description: item.description,
+                    unit_price: item.unit_price,
+                    unit: item.unit,
+                    vat_rate: item.vat_rate,
+                });
+            }
+        });
+        setSavedProducts(Array.from(map.values()));
+    };
+
     useEffect(() => {
-        if (profile?.id && view === 'create') loadSavedClients();
+        if (profile?.id && view === 'create') {
+            loadSavedClients();
+            loadSavedProducts();
+        }
     }, [profile?.id, view]);
+
+    const handleDescriptionChange = (idx, value) => {
+        updateItem(idx, 'description', value);
+        if (value.length >= 2) {
+            const matches = savedProducts.filter(p =>
+                p.description.toLowerCase().includes(value.toLowerCase())
+            );
+            setProductSuggestions(matches);
+            setActiveProductIdx(matches.length > 0 ? idx : null);
+        } else {
+            setActiveProductIdx(null);
+        }
+    };
+
+    const selectProduct = (idx, product) => {
+        setItems(prev => prev.map((item, i) => i === idx ? {
+            ...item,
+            description: product.description,
+            unit_price: product.unit_price,
+            unit: product.unit,
+            vat_rate: product.vat_rate,
+        } : item));
+        setActiveProductIdx(null);
+    };
 
     const handleClientNameChange = (value) => {
         setForm(p => ({ ...p, client_name: value }));
@@ -642,9 +696,33 @@ export default function InvoicesPage() {
                         gap: 10, alignItems: 'end', marginBottom: 12, paddingBottom: 12,
                         borderBottom: idx < items.length - 1 ? '1px solid var(--gray-100)' : 'none',
                     }}>
-                        <div className="input-group" style={{ margin: 0 }}>
+                        <div className="input-group" style={{ margin: 0, position: 'relative' }}>
                             {idx === 0 && <label className="input-label">Megnevezés</label>}
-                            <input className="input" placeholder="Szolgáltatás neve" value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} />
+                            <input className="input" placeholder="Szolgáltatás neve" value={item.description}
+                                onChange={e => handleDescriptionChange(idx, e.target.value)}
+                                onFocus={() => { if (item.description.length >= 2) handleDescriptionChange(idx, item.description); }}
+                                onBlur={() => setTimeout(() => setActiveProductIdx(null), 200)}
+                            />
+                            {activeProductIdx === idx && productSuggestions.length > 0 && (
+                                <div style={{
+                                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                                    background: 'white', border: '1px solid var(--gray-200)', borderRadius: 10,
+                                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: 200, overflowY: 'auto',
+                                }}>
+                                    {productSuggestions.map((p, i) => (
+                                        <div key={i} onClick={() => selectProduct(idx, p)} style={{
+                                            padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--gray-50)',
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                        }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--gray-50)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                                        >
+                                            <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{p.description}</span>
+                                            <span style={{ color: 'var(--gray-400)', fontSize: '0.8rem' }}>{p.unit_price.toLocaleString('hu-HU')} Ft</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                         <div className="input-group" style={{ margin: 0 }}>
                             {idx === 0 && <label className="input-label">Menny.</label>}
