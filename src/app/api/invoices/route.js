@@ -535,19 +535,21 @@ async function reportToNav(invoice, items, settings) {
             <quantity>${Number(item.quantity || 1).toFixed(2)}</quantity>
             <unitOfMeasure>OWN</unitOfMeasure>
             <unitPrice>${Number(item.unit_price || 0).toFixed(2)}</unitPrice>
-            <lineNetAmountData>
-                <lineNetAmount>${Number(item.net_amount || 0).toFixed(2)}</lineNetAmount>
-                <lineNetAmountHUF>${Number(item.net_amount || 0).toFixed(2)}</lineNetAmountHUF>
-            </lineNetAmountData>
-            <lineVatRate>${vatRateXml}</lineVatRate>
-            <lineVatData>
-                <lineVatAmount>${Number(item.vat_amount || 0).toFixed(2)}</lineVatAmount>
-                <lineVatAmountHUF>${Number(item.vat_amount || 0).toFixed(2)}</lineVatAmountHUF>
-            </lineVatData>
-            <lineGrossAmountData>
-                <lineGrossAmountNormal>${Number(item.gross_amount || 0).toFixed(2)}</lineGrossAmountNormal>
-                <lineGrossAmountNormalHUF>${Number(item.gross_amount || 0).toFixed(2)}</lineGrossAmountNormalHUF>
-            </lineGrossAmountData>
+            <lineAmountsNormal>
+                <lineNetAmountData>
+                    <lineNetAmount>${Number(item.net_amount || 0).toFixed(2)}</lineNetAmount>
+                    <lineNetAmountHUF>${Number(item.net_amount || 0).toFixed(2)}</lineNetAmountHUF>
+                </lineNetAmountData>
+                <lineVatRate>${vatRateXml}</lineVatRate>
+                <lineVatData>
+                    <lineVatAmount>${Number(item.vat_amount || 0).toFixed(2)}</lineVatAmount>
+                    <lineVatAmountHUF>${Number(item.vat_amount || 0).toFixed(2)}</lineVatAmountHUF>
+                </lineVatData>
+                <lineGrossAmountData>
+                    <lineGrossAmountNormal>${Number(item.gross_amount || 0).toFixed(2)}</lineGrossAmountNormal>
+                    <lineGrossAmountNormalHUF>${Number(item.gross_amount || 0).toFixed(2)}</lineGrossAmountNormalHUF>
+                </lineGrossAmountData>
+            </lineAmountsNormal>
         </line>`;
     }).join('\n');
 
@@ -570,20 +572,25 @@ async function reportToNav(invoice, items, settings) {
         </summaryByVatRate>`;
     }).join('\n');
 
-    // Ügyfél adószám XML (opcionális)
-    let customerTaxXml = '';
+    // Ügyfél adatok XML
+    let customerVatXml = '';
     if (invoice.client_tax_number) {
         const clientTaxParts = invoice.client_tax_number.split('-');
-        customerTaxXml = `<customerTaxNumber>
-            <taxpayerId>${clientTaxParts[0] || ''}</taxpayerId>
-            <vatCode>${clientTaxParts[1] || '1'}</vatCode>
-            <countyCode>${clientTaxParts[2] || '00'}</countyCode>
-        </customerTaxNumber>`;
+        customerVatXml = `<customerVatStatus>DOMESTIC</customerVatStatus>
+                    <customerVatData>
+                        <customerTaxNumber>
+                            <base:taxpayerId>${clientTaxParts[0] || ''}</base:taxpayerId>
+                            <base:vatCode>${clientTaxParts[1] || '1'}</base:vatCode>
+                            <base:countyCode>${clientTaxParts[2] || '00'}</base:countyCode>
+                        </customerTaxNumber>
+                    </customerVatData>`;
+    } else {
+        customerVatXml = `<customerVatStatus>PRIVATE_PERSON</customerVatStatus>`;
     }
 
     // Teljes NAV InvoiceData XML (v3.0 séma)
     const invoiceXml = `<?xml version="1.0" encoding="UTF-8"?>
-<InvoiceData xmlns="http://schemas.nav.gov.hu/OSA/3.0/data" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<InvoiceData xmlns="http://schemas.nav.gov.hu/OSA/3.0/data" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:base="http://schemas.nav.gov.hu/OSA/3.0/base">
     <invoiceNumber>${escapeXml(invoice.invoice_number)}</invoiceNumber>
     <invoiceIssueDate>${invoice.issue_date}</invoiceIssueDate>
     <completenessIndicator>false</completenessIndicator>
@@ -592,42 +599,44 @@ async function reportToNav(invoice, items, settings) {
             <invoiceHead>
                 <supplierInfo>
                     <supplierTaxNumber>
-                        <taxpayerId>${supplierTaxParts[0] || navTaxNumber}</taxpayerId>
-                        <vatCode>${supplierTaxParts[1] || '1'}</vatCode>
-                        <countyCode>${supplierTaxParts[2] || '00'}</countyCode>
+                        <base:taxpayerId>${supplierTaxParts[0] || navTaxNumber}</base:taxpayerId>
+                        <base:vatCode>${supplierTaxParts[1] || '1'}</base:vatCode>
+                        <base:countyCode>${supplierTaxParts[2] || '00'}</base:countyCode>
                     </supplierTaxNumber>
                     <supplierName>${escapeXml(settings.company_name || '')}</supplierName>
                     <supplierAddress>
-                        <simpleAddress>
-                            <countryCode>HU</countryCode>
-                            <postalCode>${escapeXml(settings.zip_code || '0000')}</postalCode>
-                            <city>${escapeXml(settings.city || '-')}</city>
-                            <additionalAddressDetail>${escapeXml(settings.address || '-')}</additionalAddressDetail>
-                        </simpleAddress>
+                        <base:simpleAddress>
+                            <base:countryCode>HU</base:countryCode>
+                            <base:postalCode>${escapeXml(settings.zip_code || '0000')}</base:postalCode>
+                            <base:city>${escapeXml(settings.city || '-')}</base:city>
+                            <base:additionalAddressDetail>${escapeXml(settings.address || '-')}</base:additionalAddressDetail>
+                        </base:simpleAddress>
                     </supplierAddress>
                 </supplierInfo>
                 <customerInfo>
-                    ${customerTaxXml}
+                    ${customerVatXml}
                     <customerName>${escapeXml(invoice.client_name || '')}</customerName>
                     <customerAddress>
-                        <simpleAddress>
-                            <countryCode>${invoice.client_country || 'HU'}</countryCode>
-                            <postalCode>${escapeXml(invoice.client_zip || '0000')}</postalCode>
-                            <city>${escapeXml(invoice.client_city || '-')}</city>
-                            <additionalAddressDetail>${escapeXml(invoice.client_address || '-')}</additionalAddressDetail>
-                        </simpleAddress>
+                        <base:simpleAddress>
+                            <base:countryCode>${invoice.client_country || 'HU'}</base:countryCode>
+                            <base:postalCode>${escapeXml(invoice.client_zip || '0000')}</base:postalCode>
+                            <base:city>${escapeXml(invoice.client_city || '-')}</base:city>
+                            <base:additionalAddressDetail>${escapeXml(invoice.client_address || '-')}</base:additionalAddressDetail>
+                        </base:simpleAddress>
                     </customerAddress>
                 </customerInfo>
                 <invoiceDetail>
                     <invoiceCategory>NORMAL</invoiceCategory>
                     <invoiceDeliveryDate>${invoice.fulfillment_date}</invoiceDeliveryDate>
                     <currencyCode>HUF</currencyCode>
+                    <exchangeRate>1</exchangeRate>
                     <invoiceAppearance>ELECTRONIC</invoiceAppearance>
                     <paymentMethod>${navPaymentMethod}</paymentMethod>
                     <paymentDate>${invoice.due_date}</paymentDate>
                 </invoiceDetail>
             </invoiceHead>
             <invoiceLines>
+                <mergedItemIndicator>false</mergedItemIndicator>
                 ${linesXml}
             </invoiceLines>
             <invoiceSummary>
