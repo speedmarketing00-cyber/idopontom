@@ -41,6 +41,9 @@ export async function POST(request) {
     }
 
     // 2. Save booking to database
+    let insertedBooking = null;
+    let cancelToken = null;
+
     if (supabaseAdmin && profileId) {
       // Compute end_time from start_time + duration
       const [th, tm] = time.split(':').map(Number);
@@ -144,9 +147,9 @@ export async function POST(request) {
       const serviceId = resolvedServiceId;
 
       // Generate unique cancel token
-      const cancelToken = crypto.randomBytes(32).toString('hex');
+      cancelToken = crypto.randomBytes(32).toString('hex');
 
-      const { data: insertedBooking, error: insertError } = await supabaseAdmin.from('bookings').insert({
+      const { data: insertedRow, error: insertError } = await supabaseAdmin.from('bookings').insert({
         profile_id: profileId,
         service_id: serviceId,
         team_member_id: teamMemberId || null,
@@ -173,6 +176,7 @@ export async function POST(request) {
         }
         return Response.json({ error: 'Nem sikerült menteni a foglalást: ' + insertError.message }, { status: 500 });
       }
+      insertedBooking = insertedRow;
     }
 
     // 3. Send emails (only for paid tiers: basic/pro, respecting email_settings)
