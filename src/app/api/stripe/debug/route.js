@@ -123,42 +123,67 @@ export async function GET(request) {
 
     // If email provided, check that specific user
     if (email) {
-        const customers = await stripe.customers.list({ email, limit: 1 });
-        diagnostics.stripe_customer = customers.data[0] ? {
-            id: customers.data[0].id,
-            email: customers.data[0].email,
-        } : null;
+        try {
+            const customers = await stripe.customers.list({ email, limit: 1 });
+            diagnostics.stripe_customer = customers.data[0] ? {
+                id: customers.data[0].id,
+                email: customers.data[0].email,
+            } : null;
 
-        if (customers.data[0]) {
-            const subs = await stripe.subscriptions.list({ customer: customers.data[0].id, status: 'all', limit: 5 });
-            diagnostics.subscriptions = subs.data.map(s => ({
-                id: s.id,
-                status: s.status,
-                plan: s.metadata?.planName,
-                current_period_end: new Date(s.current_period_end * 1000).toISOString(),
-                trial_end: s.trial_end ? new Date(s.trial_end * 1000).toISOString() : null,
-            }));
+            if (customers.data[0]) {
+                const subs = await stripe.subscriptions.list({ customer: customers.data[0].id, status: 'all', limit: 5 });
+                diagnostics.subscriptions = subs.data.map(s => ({
+                    id: s.id,
+                    status: s.status,
+                    plan: s.metadata?.planName,
+                    current_period_end: new Date(s.current_period_end * 1000).toISOString(),
+                    trial_end: s.trial_end ? new Date(s.trial_end * 1000).toISOString() : null,
+                }));
+            }
+        } catch (e) {
+            diagnostics.stripe_error = e.message;
         }
 
-        const { data: profile } = await supabaseAdmin
-            .from('profiles')
-            .select('id, email, subscription_tier, stripe_customer_id, stripe_subscription_id')
-            .eq('email', email)
-            .maybeSingle();
-        diagnostics.supabase_profile = profile;
+        try {
+            const { data: profile } = await supabaseAdmin
+                .from('profiles')
+                .select('id, email, subscription_tier, stripe_customer_id, stripe_subscription_id')
+                .eq('email', email)
+                .maybeSingle();
+            diagnostics.supabase_profile = profile;
 
-        if (!profile) {
-            const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-            const authUser = users?.find(u => u.email === email);
-            if (authUser) {
-                const { data: profByUserId } = await supabaseAdmin
-                    .from('profiles')
-                    .select('id, email, subscription_tier, stripe_customer_id, stripe_subscription_id')
-                    .eq('user_id', authUser.id)
-                    .maybeSingle();
-                diagnostics.supabase_profile_via_auth = profByUserId;
-                diagnostics.note = 'Profile email column empty — found via auth user lookup';
+            if (!profile) {
+                const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+                const authUser = users?.find(u => u.email === email);
+                if (authUser) {
+                    const { data: profByUserId } = await supabaseAdmin
+                        .from('profiles')
+                        .select('id, email, subscription_tier, stripe_customer_id, stripe_subscription_id')
+                        .eq('user_id', authUser.id)
+                        .maybeSingle();
+                    diagnostics.supabase_profile_via_auth = profByUserId;
+                    diagnostics.note = 'Profile email column empty — found via auth user lookup';
+                }
             }
+        } catch (e) {
+            diagnostics.supabase_error = e.message;
+        }
+    }
+
+    // Action: fix webhook URL to use www (avoid redirect breaking signature)
+    if (action === 'fix-webhook') {
+        try {
+            const endpoints = await stripe.webhookEndpoints.list({ limit: 10 });
+            const wrongEndpoint = endpoints.data.find(w => w.url === 'https://foglaljvelem.hu/api/stripe/webhook');
+            if (wrongEndpoint) {
+                await stripe.webhookEndpoints.update(wrongEndpoint.id, {
+                    url: 'https://www.foglaljvelem.hu/api/stripe/webhook',
+                });
+                return Response.json({ fixed: true, message: 'Webhook URL updated to www.foglaljvelem.hu' });
+            }
+            return Response.json({ fixed: false, message: 'No webhook with old URL found', endpoints: endpoints.data.map(w => w.url) });
+        } catch (e) {
+            return Response.json({ error: e.message }, { status: 500 });
         }
     }
 
