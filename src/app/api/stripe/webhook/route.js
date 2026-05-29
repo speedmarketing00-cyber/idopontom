@@ -56,20 +56,8 @@ export async function POST(request) {
                         }
                     }
 
-                    // Step 2: Fallback — search by email in profiles table
-                    if (!profileId && customerEmail) {
-                        const { data: foundProfile } = await supabaseAdmin
-                            .from('profiles')
-                            .select('id')
-                            .eq('email', customerEmail)
-                            .maybeSingle();
-                        if (foundProfile) {
-                            profileId = foundProfile.id;
-                            console.log('Checkout: resolved profileId from profiles.email', customerEmail, '->', profileId);
-                        }
-                    }
-
-                    // Step 3: Fallback — search via auth.users → profiles.user_id
+                    // Step 2: Fallback — search via auth.users email → profiles.user_id
+                    // (profiles table has no email column, email lives in auth.users)
                     if (!profileId && customerEmail) {
                         const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
                         const authUser = users?.find(u => u.email === customerEmail);
@@ -94,7 +82,6 @@ export async function POST(request) {
                                         name: authUser.user_metadata?.name || '',
                                         business_name: authUser.user_metadata?.business_name || '',
                                         slug,
-                                        email: customerEmail,
                                         subscription_tier: tier,
                                         stripe_customer_id: session.customer,
                                         stripe_subscription_id: session.subscription,

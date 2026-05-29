@@ -33,68 +33,50 @@ export async function GET(request) {
         const tierMap = { alap: 'basic', profi: 'pro' };
         const tier = tierMap[planName] || 'basic';
 
-        // Find profile by email
-        const { data: profile } = await supabaseAdmin
-            .from('profiles')
-            .select('id, email, subscription_tier, stripe_customer_id, stripe_subscription_id, user_id')
-            .eq('email', email)
-            .maybeSingle();
+        // Find profile via auth.users → profiles.user_id (profiles has no email column)
+        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+        const authUser = users?.find(u => u.email === email);
 
-        if (!profile) {
-            // Try via auth users
-            const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-            const authUser = users?.find(u => u.email === email);
-            if (!authUser) {
-                return Response.json({ error: 'No profile or auth user found for this email' });
-            }
-            const { data: profByUserId } = await supabaseAdmin
+        let profile = null;
+        if (authUser) {
+            const { data: prof } = await supabaseAdmin
                 .from('profiles')
-                .select('id, email, subscription_tier, stripe_customer_id, stripe_subscription_id, user_id')
+                .select('id, subscription_tier, stripe_customer_id, stripe_subscription_id, user_id')
                 .eq('user_id', authUser.id)
                 .maybeSingle();
-            if (!profByUserId) {
-                // Last resort: create the missing profile row
-                const slug = (authUser.user_metadata?.business_name || email.split('@')[0])
-                    .toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now().toString(36).slice(-4);
-                const { data: newProfile, error: createErr } = await supabaseAdmin
-                    .from('profiles')
-                    .insert({
-                        user_id: authUser.id,
-                        name: authUser.user_metadata?.name || '',
-                        business_name: authUser.user_metadata?.business_name || '',
-                        slug,
-                        email,
-                        subscription_tier: tier,
-                        stripe_customer_id: customer.id,
-                        stripe_subscription_id: activeSub.id,
-                    })
-                    .select('id')
-                    .single();
-                if (createErr) {
-                    return Response.json({ error: 'Failed to create profile', detail: createErr.message, authUserId: authUser.id });
-                }
-                return Response.json({
-                    fixed: true,
-                    created: true,
-                    profileId: newProfile.id,
-                    authUserId: authUser.id,
-                    after: { tier, customerId: customer.id, subscriptionId: activeSub.id },
-                    note: 'Profile row was missing — created new profile and synced subscription',
-                });
-            }
-            // Sync it
-            await supabaseAdmin.from('profiles').update({
-                subscription_tier: tier,
-                stripe_customer_id: customer.id,
-                stripe_subscription_id: activeSub.id,
-            }).eq('id', profByUserId.id);
+            profile = prof;
+        }
 
+        if (!profile) {
+            if (!authUser) {
+                return Response.json({ error: 'No auth user found for this email' });
+            }
+            // Profile row is completely missing — create it
+            const slug = (authUser.user_metadata?.business_name || email.split('@')[0])
+                .toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now().toString(36).slice(-4);
+            const { data: newProfile, error: createErr } = await supabaseAdmin
+                .from('profiles')
+                .insert({
+                    user_id: authUser.id,
+                    name: authUser.user_metadata?.name || '',
+                    business_name: authUser.user_metadata?.business_name || '',
+                    slug,
+                    subscription_tier: tier,
+                    stripe_customer_id: customer.id,
+                    stripe_subscription_id: activeSub.id,
+                })
+                .select('id')
+                .single();
+            if (createErr) {
+                return Response.json({ error: 'Failed to create profile', detail: createErr.message, authUserId: authUser.id });
+            }
             return Response.json({
                 fixed: true,
-                profileId: profByUserId.id,
-                before: { tier: profByUserId.subscription_tier, customerId: profByUserId.stripe_customer_id },
+                created: true,
+                profileId: newProfile.id,
+                authUserId: authUser.id,
                 after: { tier, customerId: customer.id, subscriptionId: activeSub.id },
-                note: 'Profile found via auth user lookup (email column was empty)',
+                note: 'Profile row was missing — created new profile and synced subscription',
             });
         }
 
@@ -172,25 +154,22 @@ export async function GET(request) {
         }
 
         try {
-            const { data: profile } = await supabaseAdmin
-                .from('profiles')
-                .select('id, email, subscription_tier, stripe_customer_id, stripe_subscription_id')
-                .eq('email', email)
-                .maybeSingle();
-            diagnostics.supabase_profile = profile;
-
-            if (!profile) {
-                const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-                const authUser = users?.find(u => u.email === email);
-                if (authUser) {
-                    const { data: profByUserId } = await supabaseAdmin
-                        .from('profiles')
-                        .select('id, email, subscription_tier, stripe_customer_id, stripe_subscription_id')
-                        .eq('user_id', authUser.id)
-                        .maybeSingle();
-                    diagnostics.supabase_profile_via_auth = profByUserId;
-                    diagnostics.note = 'Profile email column empty — found via auth user lookup';
+            // profiles table has no email column — find via auth.users → profiles.user_id
+            const { data: { users: diagUsers } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+            const diagAuthUser = diagUsers?.find(u => u.email === email);
+            if (diagAuthUser) {
+                diagnostics.auth_user_id = diagAuthUser.id;
+                const { data: profByUserId } = await supabaseAdmin
+                    .from('profiles')
+                    .select('id, subscription_tier, stripe_customer_id, stripe_subscription_id, user_id')
+                    .eq('user_id', diagAuthUser.id)
+                    .maybeSingle();
+                diagnostics.supabase_profile = profByUserId;
+                if (!profByUserId) {
+                    diagnostics.note = 'Auth user exists but NO profile row found';
                 }
+            } else {
+                diagnostics.note = 'No auth user found for this email';
             }
         } catch (e) {
             diagnostics.supabase_error = e.message;
