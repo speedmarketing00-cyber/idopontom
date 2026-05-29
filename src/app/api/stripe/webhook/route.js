@@ -35,24 +35,42 @@ export async function POST(request) {
         switch (event.type) {
             case 'checkout.session.completed': {
                 const session = event.data.object;
-                let profileId = session.metadata?.profileId;
+                const metadataProfileId = session.metadata?.profileId;
                 const planName = session.metadata?.planName;
                 const tier = PLAN_TO_TIER[planName] || 'basic';
                 const customerEmail = session.customer_details?.email || session.customer_email;
+                let profileId = null;
 
-                // If no profileId in metadata, find profile by email
-                if (!profileId && customerEmail && supabaseAdmin) {
-                    const { data: foundProfile } = await supabaseAdmin
-                        .from('profiles')
-                        .select('id')
-                        .eq('email', customerEmail)
-                        .maybeSingle();
+                if (supabaseAdmin) {
+                    // Step 1: Try profileId from checkout metadata
+                    if (metadataProfileId) {
+                        const { data: prof } = await supabaseAdmin
+                            .from('profiles')
+                            .select('id')
+                            .eq('id', metadataProfileId)
+                            .maybeSingle();
+                        if (prof) {
+                            profileId = prof.id;
+                        } else {
+                            console.warn('⚠️ Checkout metadata profileId not found in DB:', metadataProfileId);
+                        }
+                    }
 
-                    // If not found by email column, try auth.users
-                    if (foundProfile) {
-                        profileId = foundProfile.id;
-                    } else {
-                        // Search through auth users to find by email
+                    // Step 2: Fallback — search by email in profiles table
+                    if (!profileId && customerEmail) {
+                        const { data: foundProfile } = await supabaseAdmin
+                            .from('profiles')
+                            .select('id')
+                            .eq('email', customerEmail)
+                            .maybeSingle();
+                        if (foundProfile) {
+                            profileId = foundProfile.id;
+                            console.log('Checkout: resolved profileId from profiles.email', customerEmail, '->', profileId);
+                        }
+                    }
+
+                    // Step 3: Fallback — search via auth.users → profiles.user_id
+                    if (!profileId && customerEmail) {
                         const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
                         const authUser = users?.find(u => u.email === customerEmail);
                         if (authUser) {
@@ -61,19 +79,58 @@ export async function POST(request) {
                                 .select('id')
                                 .eq('user_id', authUser.id)
                                 .maybeSingle();
-                            if (prof) profileId = prof.id;
+                            if (prof) {
+                                profileId = prof.id;
+                                console.log('Checkout: resolved profileId from auth user', authUser.id, '->', profileId);
+                            } else {
+                                // Step 4: Profile row is completely missing — create it
+                                console.warn('⚠️ Auth user exists but no profile row. Creating profile for:', authUser.id, customerEmail);
+                                const slug = (authUser.user_metadata?.business_name || customerEmail.split('@')[0])
+                                    .toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now().toString(36).slice(-4);
+                                const { data: newProfile, error: createErr } = await supabaseAdmin
+                                    .from('profiles')
+                                    .insert({
+                                        user_id: authUser.id,
+                                        name: authUser.user_metadata?.name || '',
+                                        business_name: authUser.user_metadata?.business_name || '',
+                                        slug,
+                                        email: customerEmail,
+                                        subscription_tier: tier,
+                                        stripe_customer_id: session.customer,
+                                        stripe_subscription_id: session.subscription,
+                                    })
+                                    .select('id')
+                                    .single();
+                                if (newProfile) {
+                                    profileId = newProfile.id;
+                                    console.log('✅ Created missing profile row:', profileId, 'for auth user:', authUser.id);
+                                } else {
+                                    console.error('❌ Failed to create profile:', createErr?.message);
+                                }
+                            }
                         }
                     }
-                    console.log('Checkout: resolved profileId from email', customerEmail, '->', profileId);
                 }
 
                 if (profileId && supabaseAdmin) {
-                    await supabaseAdmin.from('profiles').update({
-                        subscription_tier: tier,
-                        stripe_customer_id: session.customer,
-                        stripe_subscription_id: session.subscription,
-                    }).eq('id', profileId);
-                    console.log('✅ Subscription activated:', { profileId, tier, planName });
+                    // Update profile with subscription data (skip if we just created it with this data)
+                    const { data: currentProfile } = await supabaseAdmin
+                        .from('profiles')
+                        .select('stripe_subscription_id')
+                        .eq('id', profileId)
+                        .maybeSingle();
+
+                    if (currentProfile && currentProfile.stripe_subscription_id !== session.subscription) {
+                        const { error: updateErr } = await supabaseAdmin.from('profiles').update({
+                            subscription_tier: tier,
+                            stripe_customer_id: session.customer,
+                            stripe_subscription_id: session.subscription,
+                        }).eq('id', profileId);
+                        if (updateErr) {
+                            console.error('❌ Profile update failed:', updateErr.message);
+                        }
+                    }
+                    console.log('✅ Subscription activated:', { profileId, tier, planName, email: customerEmail });
 
                     // Also store planName on the Stripe subscription metadata
                     // so customer.subscription.updated can read it on renewals
@@ -85,7 +142,7 @@ export async function POST(request) {
                         } catch (e) { console.warn('Subscription metadata update failed:', e.message); }
                     }
                 } else {
-                    console.error('❌ Could not find profile for checkout:', { profileId, customerEmail, planName });
+                    console.error('❌ Could not find or create profile for checkout:', { metadataProfileId, customerEmail, planName });
                 }
                 break;
             }

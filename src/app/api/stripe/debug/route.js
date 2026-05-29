@@ -53,7 +53,34 @@ export async function GET(request) {
                 .eq('user_id', authUser.id)
                 .maybeSingle();
             if (!profByUserId) {
-                return Response.json({ error: 'Auth user found but no profile row', authUserId: authUser.id });
+                // Last resort: create the missing profile row
+                const slug = (authUser.user_metadata?.business_name || email.split('@')[0])
+                    .toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now().toString(36).slice(-4);
+                const { data: newProfile, error: createErr } = await supabaseAdmin
+                    .from('profiles')
+                    .insert({
+                        user_id: authUser.id,
+                        name: authUser.user_metadata?.name || '',
+                        business_name: authUser.user_metadata?.business_name || '',
+                        slug,
+                        email,
+                        subscription_tier: tier,
+                        stripe_customer_id: customer.id,
+                        stripe_subscription_id: activeSub.id,
+                    })
+                    .select('id')
+                    .single();
+                if (createErr) {
+                    return Response.json({ error: 'Failed to create profile', detail: createErr.message, authUserId: authUser.id });
+                }
+                return Response.json({
+                    fixed: true,
+                    created: true,
+                    profileId: newProfile.id,
+                    authUserId: authUser.id,
+                    after: { tier, customerId: customer.id, subscriptionId: activeSub.id },
+                    note: 'Profile row was missing — created new profile and synced subscription',
+                });
             }
             // Sync it
             await supabaseAdmin.from('profiles').update({
