@@ -145,7 +145,7 @@ export async function GET(request) {
                     id: s.id,
                     status: s.status,
                     plan: s.metadata?.planName,
-                    current_period_end: new Date(s.current_period_end * 1000).toISOString(),
+                    current_period_end: s.current_period_end ? new Date(s.current_period_end * 1000).toISOString() : null,
                     trial_end: s.trial_end ? new Date(s.trial_end * 1000).toISOString() : null,
                 }));
             }
