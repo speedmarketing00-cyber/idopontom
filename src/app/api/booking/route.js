@@ -236,11 +236,160 @@ export async function POST(request) {
       console.log('Email sending skipped:', { hasResend: !!resend, canSendEmails, profileId: !!profileId });
     }
 
+    // 4. Auto-invoice creation (if configured)
+    if (supabaseAdmin && profileId && insertedBooking && price > 0) {
+      try {
+        const { data: invoiceSettings } = await supabaseAdmin
+          .from('invoice_settings')
+          .select('*')
+          .eq('profile_id', profileId)
+          .maybeSingle();
+
+        if (invoiceSettings && invoiceSettings.auto_invoice && invoiceSettings.auto_invoice !== 'off'
+            && invoiceSettings.company_name && invoiceSettings.tax_number) {
+          const isDraft = invoiceSettings.auto_invoice === 'draft';
+          const today = new Date().toISOString().split('T')[0];
+
+          // Generate invoice number
+          const year = new Date().getFullYear();
+          const num = String(invoiceSettings.next_invoice_number).padStart(3, '0');
+          const invoiceNumber = `${invoiceSettings.invoice_prefix}-${year}-${num}`;
+
+          // Calculate amounts
+          const vatRate = 27; // default ÁFA
+          const netAmount = Math.round(price / 1.27); // price is gross (what the client sees)
+          const vatAmount = price - netAmount;
+          const grossAmount = price;
+
+          // Dates
+          const dueDate = new Date(Date.now() + 8 * 86400000).toISOString().split('T')[0];
+
+          const { data: newInvoice, error: invError } = await supabaseAdmin
+            .from('invoices')
+            .insert({
+              profile_id: profileId,
+              invoice_number: invoiceNumber,
+              status: isDraft ? 'draft' : 'issued',
+              client_name: clientName,
+              client_email: clientEmail || '',
+              client_tax_number: '',
+              client_address: '',
+              client_city: '',
+              client_zip: '',
+              client_country: 'HU',
+              issue_date: today,
+              fulfillment_date: date, // the booking date = fulfillment
+              due_date: dueDate,
+              net_amount: netAmount,
+              vat_amount: vatAmount,
+              gross_amount: grossAmount,
+              currency: 'HUF',
+              payment_method: 'card',
+              notes: `Foglalás: ${serviceName} – ${new Date(date).toLocaleDateString('hu-HU')} ${time}`,
+              booking_id: insertedBooking.id,
+            })
+            .select('id')
+            .single();
+
+          if (!invError && newInvoice) {
+            // Insert invoice item
+            await supabaseAdmin.from('invoice_items').insert({
+              invoice_id: newInvoice.id,
+              description: serviceName,
+              quantity: 1,
+              unit: 'alkalom',
+              unit_price: netAmount,
+              vat_rate: vatRate,
+              net_amount: netAmount,
+              vat_amount: vatAmount,
+              gross_amount: grossAmount,
+              sort_order: 0,
+            });
+
+            // Increment invoice number
+            await supabaseAdmin.from('invoice_settings')
+              .update({ next_invoice_number: invoiceSettings.next_invoice_number + 1 })
+              .eq('profile_id', profileId);
+
+            console.log(`Auto-invoice created: ${invoiceNumber} (${isDraft ? 'draft' : 'issued'}) for booking ${insertedBooking.id}`);
+
+            // If auto mode + NAV configured → report to NAV (via pending, cron picks it up)
+            if (!isDraft && invoiceSettings.nav_login && invoiceSettings.nav_signing_key) {
+              await supabaseAdmin.from('invoices')
+                .update({ nav_status: 'pending' })
+                .eq('id', newInvoice.id);
+            }
+
+            // If auto mode + client has email → send invoice email
+            if (!isDraft && clientEmail && resend) {
+              try {
+                // Import the HTML generator inline (lightweight)
+                const invoiceHtml = generateSimpleInvoiceEmail(invoiceNumber, invoiceSettings, {
+                  client_name: clientName, client_email: clientEmail,
+                  issue_date: today, fulfillment_date: date, due_date: dueDate,
+                  gross_amount: grossAmount, net_amount: netAmount, vat_amount: vatAmount,
+                }, serviceName, price);
+
+                await resend.emails.send({
+                  from: `${invoiceSettings.company_name} <noreply@foglaljvelem.hu>`,
+                  to: clientEmail,
+                  subject: `Számla: ${invoiceNumber} – ${invoiceSettings.company_name}`,
+                  html: invoiceHtml,
+                });
+                console.log('Auto-invoice email sent to:', clientEmail);
+              } catch (emailErr) {
+                console.error('Auto-invoice email error:', emailErr.message);
+              }
+            }
+          } else if (invError) {
+            console.error('Auto-invoice creation failed:', invError.message);
+          }
+        }
+      } catch (autoInvErr) {
+        // Auto-invoice is best-effort — don't fail the booking
+        console.error('Auto-invoice error (non-fatal):', autoInvErr.message);
+      }
+    }
+
     return Response.json({ success: true });
   } catch (error) {
     console.error('Booking API error:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
+}
+
+// Simple invoice email for auto-generated invoices
+function generateSimpleInvoiceEmail(invoiceNumber, settings, invoice, serviceName, price) {
+  const fmtDate = (d) => new Date(d).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' });
+  const fmtNum = (n) => Number(n).toLocaleString('hu-HU');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;margin:0;padding:20px;background:#f9fafb;">
+<div style="max-width:600px;margin:0 auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+  <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:white;padding:28px 32px;">
+    <div style="font-size:1.3rem;font-weight:700;">${settings.company_name}</div>
+    <div style="font-size:0.85rem;opacity:0.8;margin-top:4px;">Számla: ${invoiceNumber}</div>
+  </div>
+  <div style="padding:28px 32px;">
+    <p style="margin:0 0 20px;color:#374151;line-height:1.6;">Szia <strong>${invoice.client_name}</strong>,<br>Csatolva küldjük a számlát a foglalásodhoz.</p>
+    <div style="background:#f3f4f6;border-radius:12px;padding:20px;margin-bottom:20px;">
+      <table style="width:100%;font-size:0.9rem;">
+        <tr><td style="padding:6px 0;color:#6b7280;">Szolgáltatás:</td><td style="padding:6px 0;text-align:right;font-weight:600;">${serviceName}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Nettó:</td><td style="padding:6px 0;text-align:right;">${fmtNum(invoice.net_amount)} Ft</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">ÁFA (27%):</td><td style="padding:6px 0;text-align:right;">${fmtNum(invoice.vat_amount)} Ft</td></tr>
+        <tr style="border-top:2px solid #d1d5db;"><td style="padding:10px 0 0;font-weight:700;font-size:1rem;">Fizetendő:</td><td style="padding:10px 0 0;text-align:right;font-weight:700;font-size:1.1rem;color:#2563eb;">${fmtNum(invoice.gross_amount)} Ft</td></tr>
+      </table>
+    </div>
+    <div style="font-size:0.8rem;color:#9ca3af;">
+      <div>Kiállítás: ${fmtDate(invoice.issue_date)} | Teljesítés: ${fmtDate(invoice.fulfillment_date)}</div>
+      <div>Fizetési határidő: ${fmtDate(invoice.due_date)}</div>
+      <div style="margin-top:8px;">${settings.company_name} | ${settings.tax_number} | ${settings.zip_code} ${settings.city}, ${settings.address}</div>
+    </div>
+  </div>
+  <div style="padding:16px 32px;background:#f9fafb;text-align:center;font-size:0.75rem;color:#9ca3af;">
+    Készítette: FoglaljVelem.hu számlázó modul
+  </div>
+</div>
+</body></html>`;
 }
 
 // ============================

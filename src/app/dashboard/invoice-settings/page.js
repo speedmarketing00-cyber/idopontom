@@ -27,6 +27,7 @@ export default function InvoiceSettingsPage() {
         nav_signing_key: '',
         nav_replacement_key: '',
         nav_tax_number: '',
+        auto_invoice: 'off',
     });
 
     useEffect(() => {
@@ -59,6 +60,7 @@ export default function InvoiceSettingsPage() {
                 nav_signing_key: data.nav_signing_key || '',
                 nav_replacement_key: data.nav_replacement_key || '',
                 nav_tax_number: data.nav_tax_number || '',
+                auto_invoice: data.auto_invoice || 'off',
             });
         }
         setLoading(false);
@@ -193,6 +195,49 @@ export default function InvoiceSettingsPage() {
                 <div style={{ maxWidth: 300 }}>
                     {f('invoice_prefix', 'Számla előtag (prefix)', 'FV')}
                 </div>
+            </div>
+
+            {/* Auto Invoice */}
+            <div className={s.contentCard} style={{ padding: 32, marginBottom: 24 }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 8 }}>🤖 Automatikus számlázás</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: 20, lineHeight: 1.6 }}>
+                    Ha bekapcsolod, minden új foglaláshoz automatikusan készül számla az ügyfél adataival.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 500 }}>
+                    {[
+                        { value: 'off', emoji: '⛔', label: 'Kikapcsolva', desc: 'Nem készül számla a foglalásokhoz' },
+                        { value: 'draft', emoji: '📝', label: 'Piszkozat', desc: 'Piszkozat számla jön létre — te állítod ki manuálisan' },
+                        { value: 'auto', emoji: '🤖', label: 'Automatikus', desc: 'Számla automatikusan kiállítva + email küldés az ügyfélnek' },
+                    ].map(opt => (
+                        <label key={opt.value} style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 18px',
+                            borderRadius: 12, cursor: 'pointer', transition: 'all 0.15s',
+                            border: form.auto_invoice === opt.value ? '2px solid var(--primary-500)' : '2px solid var(--gray-200)',
+                            background: form.auto_invoice === opt.value ? 'var(--primary-50)' : 'white',
+                        }}>
+                            <input
+                                type="radio"
+                                name="auto_invoice"
+                                value={opt.value}
+                                checked={form.auto_invoice === opt.value}
+                                onChange={e => setForm(p => ({ ...p, auto_invoice: e.target.value }))}
+                                style={{ marginTop: 3 }}
+                            />
+                            <div>
+                                <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{opt.emoji} {opt.label}</div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', marginTop: 2 }}>{opt.desc}</div>
+                            </div>
+                        </label>
+                    ))}
+                </div>
+                {form.auto_invoice !== 'off' && !form.company_name && (
+                    <div style={{
+                        padding: '12px 16px', borderRadius: 10, marginTop: 16,
+                        background: '#fef2f2', border: '1px solid #fecaca', fontSize: '0.85rem', color: '#991b1b',
+                    }}>
+                        ⚠️ A számlázáshoz először ki kell töltened a cégadatokat fent!
+                    </div>
+                )}
             </div>
 
             {/* NAV Settings */}
