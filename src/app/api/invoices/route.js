@@ -280,7 +280,7 @@ export async function POST(request) {
 
         // ===================== SEND EMAIL =====================
         if (action === 'send-email') {
-            const { invoiceId } = body;
+            const { invoiceId, email: overrideEmail, message: customMessage } = body;
 
             const [
                 { data: invoice },
@@ -292,7 +292,8 @@ export async function POST(request) {
                 supabaseAdmin.from('invoice_settings').select('*').eq('profile_id', profileId).maybeSingle(),
             ]);
 
-            if (!invoice || !settings || !invoice.client_email) {
+            const targetEmail = overrideEmail || invoice?.client_email;
+            if (!invoice || !settings || !targetEmail) {
                 return Response.json({ error: 'Számla vagy email cím nem található' }, { status: 400 });
             }
 
@@ -300,13 +301,21 @@ export async function POST(request) {
                 return Response.json({ error: 'Email szolgáltatás nincs konfigurálva' }, { status: 500 });
             }
 
-            const html = generateInvoiceHtml(invoice, items || [], settings);
+            const invoiceHtml = generateInvoiceHtml(invoice, items || [], settings);
+
+            // Build email with personal message + invoice
+            const messageHtml = customMessage
+                ? `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:800px;margin:0 auto;padding:20px;">
+                    <div style="padding:20px 0;font-size:0.95rem;color:#374151;line-height:1.7;white-space:pre-line;">${escapeXml(customMessage)}</div>
+                    <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;">
+                   </div>${invoiceHtml}`
+                : invoiceHtml;
 
             await resend.emails.send({
-                from: 'FoglaljVelem <noreply@foglaljvelem.hu>',
-                to: invoice.client_email,
+                from: `${settings.company_name || 'FoglaljVelem'} <noreply@foglaljvelem.hu>`,
+                to: targetEmail,
                 subject: `Számla: ${invoice.invoice_number} – ${settings.company_name}`,
-                html: html,
+                html: messageHtml,
             });
 
             return Response.json({ success: true });

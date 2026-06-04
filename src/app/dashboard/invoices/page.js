@@ -70,6 +70,10 @@ export default function InvoicesPage() {
     // Termék/szolgáltatás autocomplete
     const [savedProducts, setSavedProducts] = useState([]);
     const [productSuggestions, setProductSuggestions] = useState([]);
+
+    // Email küldés popup
+    const [emailModal, setEmailModal] = useState(null); // { invoice, email, message, sending }
+
     const [activeProductIdx, setActiveProductIdx] = useState(null);
 
     useEffect(() => {
@@ -325,19 +329,55 @@ export default function InvoicesPage() {
         }
     };
 
-    const handleSendEmail = async (invoice) => {
-        if (!invoice.client_email) {
-            alert('Az ügyfélnek nincs email címe megadva!');
+    const openEmailModal = (invoice) => {
+        setEmailModal({
+            invoice,
+            email: invoice.client_email || '',
+            message: `Szia,\nCsatolva küldjük a számlát.`,
+            sending: false,
+            error: '',
+            success: false,
+        });
+    };
+
+    const sendEmailFromModal = async () => {
+        if (!emailModal) return;
+        const { invoice, email, message } = emailModal;
+
+        if (!email || !email.includes('@')) {
+            setEmailModal(prev => ({ ...prev, error: 'Kérlek adj meg egy érvényes email címet!' }));
             return;
         }
-        const res = await fetch('/api/invoices', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'send-email', invoiceId: invoice.id, profileId: profile.id }),
-        });
-        const data = await res.json();
-        if (res.ok) alert('✅ Számla elküldve: ' + invoice.client_email);
-        else alert('❌ Hiba: ' + (data.error || 'Sikertelen'));
+
+        setEmailModal(prev => ({ ...prev, sending: true, error: '' }));
+
+        try {
+            const res = await fetch('/api/invoices', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'send-email',
+                    invoiceId: invoice.id,
+                    profileId: profile.id,
+                    email,
+                    message,
+                }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setEmailModal(prev => ({ ...prev, sending: false, success: true }));
+                // Ha az ügyfélnek nem volt email, mentsük el
+                if (!invoice.client_email && email) {
+                    await supabase.from('invoices').update({ client_email: email }).eq('id', invoice.id);
+                    await loadInvoices();
+                }
+                setTimeout(() => setEmailModal(null), 2000);
+            } else {
+                setEmailModal(prev => ({ ...prev, sending: false, error: data.error || 'Hiba történt a küldésnél' }));
+            }
+        } catch (err) {
+            setEmailModal(prev => ({ ...prev, sending: false, error: err.message }));
+        }
     };
 
     const handleViewDetail = async (invoice) => {
@@ -459,7 +499,7 @@ export default function InvoicesPage() {
                                                 <button onClick={() => handleStatusChange(inv.id, 'paid')} className="btn btn-secondary btn-sm" title="Fizetve">
                                                     ✅
                                                 </button>
-                                                <button onClick={() => handleSendEmail(inv)} className="btn btn-secondary btn-sm" title="Küldés emailben">
+                                                <button onClick={() => openEmailModal(inv)} className="btn btn-secondary btn-sm" title="Küldés emailben">
                                                     📧
                                                 </button>
                                             </>
@@ -475,6 +515,8 @@ export default function InvoicesPage() {
                         })}
                     </div>
                 )}
+
+                <EmailModal emailModal={emailModal} setEmailModal={setEmailModal} sendEmailFromModal={sendEmailFromModal} settings={settings} />
             </div>
         );
     }
@@ -497,7 +539,7 @@ export default function InvoicesPage() {
                         <button onClick={() => handleDownloadPdf(inv.id)} className="btn btn-secondary btn-sm">📄 PDF</button>
                         {inv.status === 'issued' && (
                             <>
-                                <button onClick={() => handleSendEmail(inv)} className="btn btn-secondary btn-sm">📧 Küldés</button>
+                                <button onClick={() => openEmailModal(inv)} className="btn btn-secondary btn-sm">📧 Küldés</button>
                                 <button onClick={async () => { await handleStatusChange(inv.id, 'paid'); setView('list'); }} className="btn btn-primary btn-sm">✅ Fizetve</button>
                             </>
                         )}
@@ -621,6 +663,8 @@ export default function InvoicesPage() {
                         </div>
                     )}
                 </div>
+
+                <EmailModal emailModal={emailModal} setEmailModal={setEmailModal} sendEmailFromModal={sendEmailFromModal} settings={settings} />
             </div>
         );
     }
@@ -833,6 +877,104 @@ export default function InvoicesPage() {
                 <button onClick={() => handleCreate(false)} className="btn btn-primary" disabled={createLoading}>
                     {createLoading ? '⏳ Mentés...' : '🔒 Számla kiállítása'}
                 </button>
+            </div>
+
+            <EmailModal emailModal={emailModal} setEmailModal={setEmailModal} sendEmailFromModal={sendEmailFromModal} settings={settings} />
+        </div>
+    );
+}
+
+// ===================== EMAIL KÜLDÉS MODAL =====================
+function EmailModal({ emailModal, setEmailModal, sendEmailFromModal, settings }) {
+    if (!emailModal) return null;
+    const { invoice, email, message, sending, error, success } = emailModal;
+
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+        }} onClick={() => !sending && setEmailModal(null)}>
+            <div style={{
+                background: 'white', borderRadius: 16, padding: 32,
+                maxWidth: 520, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            }} onClick={e => e.stopPropagation()}>
+                {success ? (
+                    <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                        <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>✅</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#16a34a' }}>Számla elküldve!</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginTop: 4 }}>{email}</div>
+                    </div>
+                ) : (
+                    <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>📧 Számla küldése emailben</h3>
+                            <button onClick={() => setEmailModal(null)} style={{
+                                background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer',
+                                color: 'var(--gray-400)', padding: '4px 8px', borderRadius: 8,
+                            }}>✕</button>
+                        </div>
+
+                        <div style={{
+                            padding: '12px 16px', borderRadius: 10, marginBottom: 16,
+                            background: 'var(--gray-50)', fontSize: '0.85rem', color: 'var(--gray-600)',
+                        }}>
+                            <strong>{invoice.invoice_number}</strong> — {Number(invoice.gross_amount).toLocaleString('hu-HU')} Ft
+                            <br /><span style={{ color: 'var(--gray-400)' }}>{invoice.client_name}</span>
+                        </div>
+
+                        <div className="input-group" style={{ marginBottom: 16 }}>
+                            <label className="input-label">Címzett email <span style={{ color: 'var(--error)' }}>*</span></label>
+                            <input
+                                className="input"
+                                type="email"
+                                placeholder="pelda@email.hu"
+                                value={email}
+                                onChange={e => setEmailModal(prev => ({ ...prev, email: e.target.value, error: '' }))}
+                                autoFocus={!invoice.client_email}
+                                style={!email ? { borderColor: '#fbbf24' } : {}}
+                            />
+                            {!invoice.client_email && (
+                                <div style={{ fontSize: '0.75rem', color: '#d97706', marginTop: 4 }}>
+                                    Az ügyfélhez nincs email megadva — írd be és automatikusan elmentjük.
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="input-group" style={{ marginBottom: 16 }}>
+                            <label className="input-label">Üzenet a számlához</label>
+                            <textarea
+                                className="input"
+                                rows={4}
+                                value={message}
+                                onChange={e => setEmailModal(prev => ({ ...prev, message: e.target.value }))}
+                                style={{ resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }}
+                            />
+                            <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)', marginTop: 4 }}>
+                                Feladó: {settings?.company_name || 'FoglaljVelem'} &lt;noreply@foglaljvelem.hu&gt;
+                            </div>
+                        </div>
+
+                        {error && (
+                            <div style={{
+                                padding: '10px 14px', borderRadius: 8, marginBottom: 16,
+                                background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.85rem',
+                            }}>
+                                {error}
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                            <button onClick={() => setEmailModal(null)} className="btn btn-secondary btn-sm" disabled={sending}>
+                                Mégse
+                            </button>
+                            <button onClick={sendEmailFromModal} className="btn btn-primary btn-sm" disabled={sending || !email}>
+                                {sending ? '⏳ Küldés...' : '📧 Küldés'}
+                            </button>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
