@@ -9,21 +9,6 @@ export async function GET(request) {
         return Response.json({ error: 'DB not configured' }, { status: 500 });
     }
 
-    // Keresünk retry_needed vagy storno_retry státuszú számlákat
-    const { data: retryInvoices } = await supabaseAdmin
-        .from('invoices')
-        .select('*, invoice_items(*)')
-        .or('nav_status.like.retry_needed:%,nav_status.like.storno_retry:%,nav_status.eq.pending')
-        .in('status', ['issued', 'paid', 'storno'])
-        .order('created_at', { ascending: true })
-        .limit(10);
-
-    if (!retryInvoices?.length) {
-        return Response.json({ message: 'No NAV retries needed', count: 0 });
-    }
-
-    console.log(`NAV retry cron: ${retryInvoices.length} invoice(s) to retry`);
-
     let NavConnector;
     try {
         NavConnector = (await import('@angro/nav-connector')).default;
@@ -33,7 +18,82 @@ export async function GET(request) {
 
     const results = [];
 
-    for (const invoice of retryInvoices) {
+    // ============================================================
+    // PART 1: Check 'sent' invoices — query NAV transaction status
+    // ============================================================
+    const { data: sentInvoices } = await supabaseAdmin
+        .from('invoices')
+        .select('id, invoice_number, profile_id, nav_transaction_id, nav_status')
+        .in('nav_status', ['sent', 'storno_sent'])
+        .not('nav_transaction_id', 'is', null)
+        .not('nav_transaction_id', 'eq', '')
+        .order('created_at', { ascending: true })
+        .limit(10);
+
+    for (const invoice of (sentInvoices || [])) {
+        const { data: settings } = await supabaseAdmin
+            .from('invoice_settings')
+            .select('*')
+            .eq('profile_id', invoice.profile_id)
+            .maybeSingle();
+
+        if (!settings?.nav_login || !settings?.nav_signing_key) continue;
+
+        const connector = createConnector(NavConnector, settings);
+
+        try {
+            const status = await connector.queryTransactionStatus({ transactionId: invoice.nav_transaction_id });
+            const processingResults = status?.processingResults?.processingResult;
+            if (!processingResults) {
+                results.push({ id: invoice.id, number: invoice.invoice_number, result: 'status_pending' });
+                continue;
+            }
+
+            const resultList = Array.isArray(processingResults) ? processingResults : [processingResults];
+            for (const r of resultList) {
+                if (r.invoiceStatus === 'DONE') {
+                    const newStatus = invoice.nav_status === 'storno_sent' ? 'storno_reported' : 'reported';
+                    await supabaseAdmin.from('invoices')
+                        .update({ nav_status: newStatus })
+                        .eq('id', invoice.id);
+                    results.push({ id: invoice.id, number: invoice.invoice_number, result: newStatus });
+                } else if (r.invoiceStatus === 'ABORTED') {
+                    const errMsg = r.technicalValidationMessages?.map(m => m.message).join('; ')
+                        || r.businessValidationMessages?.map(m => m.message).join('; ')
+                        || 'ABORTED';
+                    await supabaseAdmin.from('invoices')
+                        .update({ nav_status: 'error: ' + errMsg.substring(0, 500) })
+                        .eq('id', invoice.id);
+                    results.push({ id: invoice.id, number: invoice.invoice_number, result: 'error', error: errMsg.substring(0, 200) });
+                } else {
+                    // PROCESSING or RECEIVED — still waiting
+                    results.push({ id: invoice.id, number: invoice.invoice_number, result: 'processing' });
+                }
+            }
+        } catch (err) {
+            console.error(`NAV status query failed for ${invoice.invoice_number}:`, err.message);
+            results.push({ id: invoice.id, number: invoice.invoice_number, result: 'status_query_error', error: err.message.substring(0, 200) });
+        }
+    }
+
+    // ============================================================
+    // PART 2: Retry failed invoices (retry_needed, storno_retry, pending)
+    // ============================================================
+    const { data: retryInvoices } = await supabaseAdmin
+        .from('invoices')
+        .select('*, invoice_items(*)')
+        .or('nav_status.like.retry_needed:%,nav_status.like.storno_retry:%,nav_status.eq.pending')
+        .in('status', ['issued', 'paid', 'storno'])
+        .order('created_at', { ascending: true })
+        .limit(10);
+
+    if (!retryInvoices?.length && !sentInvoices?.length) {
+        return Response.json({ message: 'No NAV work needed', results, count: 0 });
+    }
+
+    console.log(`NAV cron: ${sentInvoices?.length || 0} status check(s), ${retryInvoices?.length || 0} retry(s)`);
+
+    for (const invoice of (retryInvoices || [])) {
         const { data: settings } = await supabaseAdmin
             .from('invoice_settings')
             .select('*')
@@ -45,18 +105,67 @@ export async function GET(request) {
             continue;
         }
 
-        const isTest = process.env.NAV_ENV !== 'production';
-        const navTaxNumber = (settings.nav_tax_number || '').split('-')[0];
+        const connector = createConnector(NavConnector, settings);
+        const isStorno = invoice.nav_status?.startsWith('storno_retry');
 
-        const technicalUser = {
+        try {
+            await connector.testConnection();
+
+            if (isStorno) {
+                const txId = await sendStornoToNav(connector, invoice);
+                await supabaseAdmin.from('invoices')
+                    .update({ nav_status: 'storno_sent', nav_transaction_id: txId })
+                    .eq('id', invoice.id);
+                results.push({ id: invoice.id, number: invoice.invoice_number, result: 'storno_sent', txId });
+
+            } else {
+                const items = invoice.invoice_items || [];
+                const txId = await sendInvoiceToNav(connector, invoice, items, settings);
+                await supabaseAdmin.from('invoices')
+                    .update({ nav_transaction_id: txId, nav_status: 'sent' })
+                    .eq('id', invoice.id);
+                results.push({ id: invoice.id, number: invoice.invoice_number, result: 'sent', txId });
+            }
+
+        } catch (err) {
+            console.error(`NAV retry FAILED for ${invoice.invoice_number}:`, err.message);
+            const retryCount = (invoice.nav_retry_count || 0) + 1;
+            const prefix = isStorno ? 'storno_retry' : 'retry_needed';
+
+            if (retryCount >= 10) {
+                await supabaseAdmin.from('invoices')
+                    .update({ nav_status: `failed: ${err.message.substring(0, 400)}`, nav_retry_count: retryCount })
+                    .eq('id', invoice.id);
+                results.push({ id: invoice.id, number: invoice.invoice_number, result: 'permanently_failed' });
+            } else {
+                await supabaseAdmin.from('invoices')
+                    .update({ nav_status: `${prefix}: ${err.message.substring(0, 400)}`, nav_retry_count: retryCount })
+                    .eq('id', invoice.id);
+                results.push({ id: invoice.id, number: invoice.invoice_number, result: `retry_${retryCount}/10` });
+            }
+        }
+    }
+
+    return Response.json({ message: 'NAV cron complete', results });
+}
+
+// ============================================================
+// SHARED HELPERS
+// ============================================================
+
+function createConnector(NavConnector, settings) {
+    const isTest = process.env.NAV_ENV !== 'production';
+    const navTaxNumber = (settings.nav_tax_number || '').split('-')[0];
+
+    return new NavConnector({
+        technicalUser: {
             login: settings.nav_login,
             password: settings.nav_password,
             taxNumber: navTaxNumber,
             signatureKey: settings.nav_signing_key,
             exchangeKey: settings.nav_replacement_key,
-        };
-
-        const softwareData = {
+        },
+        softwareData: {
             softwareId: 'FOGLALJVELEM000001',
             softwareName: 'FoglaljVelem Szamlazo',
             softwareOperation: 'LOCAL_SOFTWARE',
@@ -65,62 +174,33 @@ export async function GET(request) {
             softwareDevContact: 'info@foglaljvelem.hu',
             softwareDevCountryCode: 'HU',
             softwareDevTaxNumber: navTaxNumber,
-        };
-
-        const baseURL = isTest
+        },
+        baseURL: isTest
             ? 'https://api-test.onlineszamla.nav.gov.hu/invoiceService/v3/'
-            : 'https://api.onlineszamla.nav.gov.hu/invoiceService/v3/';
+            : 'https://api.onlineszamla.nav.gov.hu/invoiceService/v3/',
+    });
+}
 
-        const connector = new NavConnector({ technicalUser, softwareData, baseURL });
+async function sendInvoiceToNav(connector, invoice, items, settings) {
+    const supplierTaxParts = (settings.tax_number || '').split('-');
+    const navTaxNumber = (settings.nav_tax_number || '').split('-')[0];
+    const paymentMethodMap = { transfer: 'TRANSFER', cash: 'CASH', card: 'CARD' };
+    const navPaymentMethod = paymentMethodMap[invoice.payment_method] || 'OTHER';
 
-        const isStorno = invoice.nav_status?.startsWith('storno_retry');
+    const vatRateSummary = {};
+    items.forEach(item => {
+        const key = String(item.vat_rate || 0);
+        if (!vatRateSummary[key]) vatRateSummary[key] = { net: 0, vat: 0, gross: 0 };
+        vatRateSummary[key].net += Number(item.net_amount || 0);
+        vatRateSummary[key].vat += Number(item.vat_amount || 0);
+        vatRateSummary[key].gross += Number(item.gross_amount || 0);
+    });
 
-        try {
-            await connector.testConnection();
-
-            if (isStorno) {
-                // Stornó újrapróbálás
-                const annulmentXml = `<?xml version="1.0" encoding="UTF-8"?>
-<InvoiceAnnulment xmlns="http://schemas.nav.gov.hu/OSA/3.0/annul">
-    <annulmentReference>${escapeXml(invoice.invoice_number)}</annulmentReference>
-    <annulmentTimestamp>${new Date().toISOString()}</annulmentTimestamp>
-    <annulmentCode>ERRATIC_DATA</annulmentCode>
-    <annulmentReason>Szamla sztornozasa - ${escapeXml(invoice.invoice_number)}</annulmentReason>
-</InvoiceAnnulment>`;
-                const annulmentBase64 = Buffer.from(annulmentXml, 'utf-8').toString('base64');
-
-                const txId = await connector.manageAnnulment({
-                    annulmentOperation: [{ index: 1, annulmentOperation: 'ANNUL', invoiceAnnulment: annulmentBase64 }],
-                });
-
-                await supabaseAdmin.from('invoices')
-                    .update({ nav_status: 'storno_sent', nav_transaction_id: txId })
-                    .eq('id', invoice.id);
-
-                console.log(`NAV retry storno OK: ${invoice.invoice_number}, tx: ${txId}`);
-                results.push({ id: invoice.id, number: invoice.invoice_number, result: 'storno_sent', txId });
-
-            } else {
-                // Számla beküldés újrapróbálás
-                const items = invoice.invoice_items || [];
-                const supplierTaxParts = (settings.tax_number || '').split('-');
-                const paymentMethodMap = { transfer: 'TRANSFER', cash: 'CASH', card: 'CARD' };
-                const navPaymentMethod = paymentMethodMap[invoice.payment_method] || 'OTHER';
-
-                const vatRateSummary = {};
-                items.forEach(item => {
-                    const key = String(item.vat_rate || 0);
-                    if (!vatRateSummary[key]) vatRateSummary[key] = { net: 0, vat: 0, gross: 0 };
-                    vatRateSummary[key].net += Number(item.net_amount || 0);
-                    vatRateSummary[key].vat += Number(item.vat_amount || 0);
-                    vatRateSummary[key].gross += Number(item.gross_amount || 0);
-                });
-
-                const linesXml = items.map((item, idx) => {
-                    const vatRateXml = Number(item.vat_rate) > 0
-                        ? `<vatPercentage>${(Number(item.vat_rate) / 100).toFixed(4)}</vatPercentage>`
-                        : `<vatExemption><case>AAM</case><reason>Alanyi adómentes</reason></vatExemption>`;
-                    return `<line>
+    const linesXml = items.map((item, idx) => {
+        const vatRateXml = Number(item.vat_rate) > 0
+            ? `<vatPercentage>${(Number(item.vat_rate) / 100).toFixed(4)}</vatPercentage>`
+            : `<vatExemption><case>AAM</case><reason>Alanyi adómentes</reason></vatExemption>`;
+        return `<line>
             <lineNumber>${idx + 1}</lineNumber>
             <lineExpressionIndicator>true</lineExpressionIndicator>
             <lineDescription>${escapeXml(item.description || '')}</lineDescription>
@@ -144,13 +224,13 @@ export async function GET(request) {
                 </lineGrossAmountData>
             </lineAmountsNormal>
         </line>`;
-                }).join('\n');
+    }).join('\n');
 
-                const summaryByVatRateXml = Object.entries(vatRateSummary).map(([rate, sums]) => {
-                    const vatRateXml = Number(rate) > 0
-                        ? `<vatPercentage>${(Number(rate) / 100).toFixed(4)}</vatPercentage>`
-                        : `<vatExemption><case>AAM</case><reason>Alanyi adómentes</reason></vatExemption>`;
-                    return `<summaryByVatRate>
+    const summaryByVatRateXml = Object.entries(vatRateSummary).map(([rate, sums]) => {
+        const vatRateXml = Number(rate) > 0
+            ? `<vatPercentage>${(Number(rate) / 100).toFixed(4)}</vatPercentage>`
+            : `<vatExemption><case>AAM</case><reason>Alanyi adómentes</reason></vatExemption>`;
+        return `<summaryByVatRate>
             <vatRate>${vatRateXml}</vatRate>
             <vatRateNetData>
                 <vatRateNetAmount>${sums.net.toFixed(2)}</vatRateNetAmount>
@@ -161,12 +241,12 @@ export async function GET(request) {
                 <vatRateVatAmountHUF>${sums.vat.toFixed(2)}</vatRateVatAmountHUF>
             </vatRateVatData>
         </summaryByVatRate>`;
-                }).join('\n');
+    }).join('\n');
 
-                let customerVatXml = '';
-                if (invoice.client_tax_number) {
-                    const clientTaxParts = invoice.client_tax_number.split('-');
-                    customerVatXml = `<customerVatStatus>DOMESTIC</customerVatStatus>
+    let customerVatXml = '';
+    if (invoice.client_tax_number) {
+        const clientTaxParts = invoice.client_tax_number.split('-');
+        customerVatXml = `<customerVatStatus>DOMESTIC</customerVatStatus>
                     <customerVatData>
                         <customerTaxNumber>
                             <base:taxpayerId>${clientTaxParts[0] || ''}</base:taxpayerId>
@@ -174,11 +254,11 @@ export async function GET(request) {
                             <base:countyCode>${clientTaxParts[2] || '00'}</base:countyCode>
                         </customerTaxNumber>
                     </customerVatData>`;
-                } else {
-                    customerVatXml = `<customerVatStatus>OTHER</customerVatStatus>`;
-                }
+    } else {
+        customerVatXml = `<customerVatStatus>OTHER</customerVatStatus>`;
+    }
 
-                const invoiceXml = `<?xml version="1.0" encoding="UTF-8"?>
+    const invoiceXml = `<?xml version="1.0" encoding="UTF-8"?>
 <InvoiceData xmlns="http://schemas.nav.gov.hu/OSA/3.0/data" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:base="http://schemas.nav.gov.hu/OSA/3.0/base">
     <invoiceNumber>${escapeXml(invoice.invoice_number)}</invoiceNumber>
     <invoiceIssueDate>${invoice.issue_date}</invoiceIssueDate>
@@ -245,41 +325,28 @@ export async function GET(request) {
     </invoiceMain>
 </InvoiceData>`;
 
-                const invoiceBase64 = Buffer.from(invoiceXml, 'utf-8').toString('base64');
+    const invoiceBase64 = Buffer.from(invoiceXml, 'utf-8').toString('base64');
 
-                const txId = await connector.manageInvoice({
-                    compressedContent: false,
-                    invoiceOperation: [{ index: 1, invoiceOperation: 'CREATE', invoiceData: invoiceBase64 }],
-                });
+    return await connector.manageInvoice({
+        compressedContent: false,
+        invoiceOperation: [{ index: 1, invoiceOperation: 'CREATE', invoiceData: invoiceBase64 }],
+    });
+}
 
-                await supabaseAdmin.from('invoices')
-                    .update({ nav_transaction_id: txId, nav_status: 'sent' })
-                    .eq('id', invoice.id);
+async function sendStornoToNav(connector, invoice) {
+    const annulmentXml = `<?xml version="1.0" encoding="UTF-8"?>
+<InvoiceAnnulment xmlns="http://schemas.nav.gov.hu/OSA/3.0/annul">
+    <annulmentReference>${escapeXml(invoice.invoice_number)}</annulmentReference>
+    <annulmentTimestamp>${new Date().toISOString()}</annulmentTimestamp>
+    <annulmentCode>ERRATIC_DATA</annulmentCode>
+    <annulmentReason>Szamla sztornozasa - ${escapeXml(invoice.invoice_number)}</annulmentReason>
+</InvoiceAnnulment>`;
 
-                console.log(`NAV retry invoice OK: ${invoice.invoice_number}, tx: ${txId}`);
-                results.push({ id: invoice.id, number: invoice.invoice_number, result: 'sent', txId });
-            }
+    const annulmentBase64 = Buffer.from(annulmentXml, 'utf-8').toString('base64');
 
-        } catch (err) {
-            console.error(`NAV retry FAILED for ${invoice.invoice_number}:`, err.message);
-            const retryCount = (invoice.nav_retry_count || 0) + 1;
-            const prefix = isStorno ? 'storno_retry' : 'retry_needed';
-
-            if (retryCount >= 10) {
-                await supabaseAdmin.from('invoices')
-                    .update({ nav_status: `failed: ${err.message.substring(0, 400)}`, nav_retry_count: retryCount })
-                    .eq('id', invoice.id);
-                results.push({ id: invoice.id, number: invoice.invoice_number, result: 'permanently_failed' });
-            } else {
-                await supabaseAdmin.from('invoices')
-                    .update({ nav_status: `${prefix}: ${err.message.substring(0, 400)}`, nav_retry_count: retryCount })
-                    .eq('id', invoice.id);
-                results.push({ id: invoice.id, number: invoice.invoice_number, result: `retry_${retryCount}/10` });
-            }
-        }
-    }
-
-    return Response.json({ message: 'NAV retry complete', results });
+    return await connector.manageAnnulment({
+        annulmentOperation: [{ index: 1, annulmentOperation: 'ANNUL', invoiceAnnulment: annulmentBase64 }],
+    });
 }
 
 function escapeXml(str) {

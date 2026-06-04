@@ -248,6 +248,16 @@ export default function InvoicesPage() {
                 setCreateLoading(false);
                 return;
             }
+            if (form.issue_date > form.due_date) {
+                setCreateError('A kiállítás dátuma nem lehet későbbi, mint a fizetési határidő!');
+                setCreateLoading(false);
+                return;
+            }
+            if (form.fulfillment_date > form.due_date) {
+                setCreateError('A teljesítés dátuma nem lehet későbbi, mint a fizetési határidő!');
+                setCreateLoading(false);
+                return;
+            }
 
             const res = await fetch('/api/invoices', {
                 method: 'POST',
@@ -423,6 +433,23 @@ export default function InvoicesPage() {
                                     <div style={{ fontWeight: 700, fontSize: '1rem', minWidth: 100, textAlign: 'right' }}>
                                         {Number(inv.gross_amount).toLocaleString('hu-HU')} Ft
                                     </div>
+                                    {inv.nav_status && !['', 'reported', 'storno_reported'].includes(inv.nav_status) && (
+                                        <div style={{
+                                            fontSize: '0.7rem', padding: '2px 8px', borderRadius: 12, fontWeight: 600,
+                                            color: inv.nav_status === 'sent' || inv.nav_status === 'storno_sent' ? '#2563eb'
+                                                : inv.nav_status.startsWith('error') || inv.nav_status.startsWith('failed') ? '#dc2626'
+                                                : '#d97706',
+                                            background: inv.nav_status === 'sent' || inv.nav_status === 'storno_sent' ? '#eff6ff'
+                                                : inv.nav_status.startsWith('error') || inv.nav_status.startsWith('failed') ? '#fef2f2'
+                                                : '#fffbeb',
+                                        }}>
+                                            {inv.nav_status === 'sent' ? '⏳ NAV'
+                                                : inv.nav_status === 'pending' ? '🔄 NAV'
+                                                : inv.nav_status.startsWith('error') || inv.nav_status.startsWith('failed') ? '❌ NAV'
+                                                : inv.nav_status.startsWith('retry') ? '🔄 NAV'
+                                                : 'NAV'}
+                                        </div>
+                                    )}
                                     <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
                                         <button onClick={() => handleDownloadPdf(inv.id)} className="btn btn-secondary btn-sm" title="PDF">
                                             📄
@@ -489,6 +516,37 @@ export default function InvoicesPage() {
                             <div style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginBottom: 4 }}>Státusz</div>
                             <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: '0.85rem', fontWeight: 600, color: st.color, background: st.bg }}>{st.label}</span>
                         </div>
+                        {inv.nav_status && (
+                            <div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginBottom: 4 }}>NAV státusz</div>
+                                <span style={{
+                                    padding: '4px 12px', borderRadius: 20, fontSize: '0.8rem', fontWeight: 600,
+                                    color: inv.nav_status === 'reported' || inv.nav_status === 'storno_reported' ? '#16a34a'
+                                        : inv.nav_status === 'sent' || inv.nav_status === 'storno_sent' ? '#2563eb'
+                                        : inv.nav_status.startsWith('error') || inv.nav_status.startsWith('failed') ? '#dc2626'
+                                        : inv.nav_status === 'pending' ? '#d97706' : '#6b7280',
+                                    background: inv.nav_status === 'reported' || inv.nav_status === 'storno_reported' ? '#f0fdf4'
+                                        : inv.nav_status === 'sent' || inv.nav_status === 'storno_sent' ? '#eff6ff'
+                                        : inv.nav_status.startsWith('error') || inv.nav_status.startsWith('failed') ? '#fef2f2'
+                                        : inv.nav_status === 'pending' ? '#fffbeb' : '#f3f4f6',
+                                }}>
+                                    {inv.nav_status === 'reported' ? '✅ NAV-nak bejelentve'
+                                        : inv.nav_status === 'storno_reported' ? '✅ Sztornó bejelentve'
+                                        : inv.nav_status === 'sent' ? '⏳ Beküldve, feldolgozás alatt'
+                                        : inv.nav_status === 'storno_sent' ? '⏳ Sztornó beküldve'
+                                        : inv.nav_status === 'pending' ? '🔄 Beküldés folyamatban'
+                                        : inv.nav_status.startsWith('error') ? '❌ Hiba'
+                                        : inv.nav_status.startsWith('failed') ? '❌ Végleges hiba'
+                                        : inv.nav_status.startsWith('retry_needed') ? '🔄 Újrapróbálás...'
+                                        : inv.nav_status}
+                                </span>
+                                {(inv.nav_status.startsWith('error') || inv.nav_status.startsWith('failed') || inv.nav_status.startsWith('retry_needed')) && (
+                                    <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: 4, maxWidth: 300, wordBreak: 'break-word' }}>
+                                        {inv.nav_status.split(': ').slice(1).join(': ')}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         <div>
                             <div style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginBottom: 4 }}>Kiállítás</div>
                             <div style={{ fontWeight: 600 }}>{new Date(inv.issue_date).toLocaleDateString('hu-HU')}</div>

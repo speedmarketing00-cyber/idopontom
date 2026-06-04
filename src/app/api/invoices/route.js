@@ -141,9 +141,15 @@ export async function POST(request) {
                 return Response.json({ error: 'Csak kiállított vagy fizetett számla sztornózható' }, { status: 400 });
             }
 
+            const updateData = { status };
+            // Storno esetén jegyezzük meg az eredeti számla ID-ját
+            if (status === 'storno') {
+                updateData.storno_of = invoiceId;
+            }
+
             const { error: updateError } = await supabaseAdmin
                 .from('invoices')
-                .update({ status })
+                .update(updateData)
                 .eq('id', invoiceId)
                 .eq('profile_id', profileId);
 
@@ -171,9 +177,7 @@ export async function POST(request) {
 
                     try {
                         await reportToNav(fullInvoice, invoiceItems || [], settings);
-                        await supabaseAdmin.from('invoices')
-                            .update({ nav_status: 'reported' })
-                            .eq('id', invoiceId);
+                        // nav_status is set to 'sent' by reportToNav — cron will confirm 'reported'
                     } catch (navErr) {
                         console.error('NAV reporting error on status change:', navErr);
                         await supabaseAdmin.from('invoices')
@@ -678,34 +682,8 @@ async function reportToNav(invoice, items, settings) {
             .eq('id', invoice.id);
     }
 
-    console.log('NAV invoice reported, transaction:', transactionId);
-
-    // Tranzakció státusz lekérdezés (pár másodperc múlva, háttérben)
-    setTimeout(async () => {
-        try {
-            const status = await connector.queryTransactionStatus({ transactionId });
-            const processingResults = status?.processingResults?.processingResult;
-            if (processingResults) {
-                const results = Array.isArray(processingResults) ? processingResults : [processingResults];
-                for (const r of results) {
-                    console.log('NAV transaction status:', JSON.stringify(r, null, 2));
-                    if (r.invoiceStatus === 'DONE') {
-                        await supabaseAdmin.from('invoices')
-                            .update({ nav_status: 'reported' })
-                            .eq('id', invoice.id);
-                    } else if (r.invoiceStatus === 'ABORTED') {
-                        const errMsg = r.technicalValidationMessages?.map(m => m.message).join('; ') || 'ABORTED';
-                        console.error('NAV ABORTED:', errMsg);
-                        await supabaseAdmin.from('invoices')
-                            .update({ nav_status: 'error: ' + errMsg.substring(0, 500) })
-                            .eq('id', invoice.id);
-                    }
-                }
-            }
-        } catch (e) {
-            console.log('NAV transaction status query failed (will retry on portal):', e.message);
-        }
-    }, 5000);
+    console.log('NAV invoice sent, transaction:', transactionId);
+    // Status will be confirmed by the NAV cron job (queryTransactionStatus)
 }
 
 // =============================================
